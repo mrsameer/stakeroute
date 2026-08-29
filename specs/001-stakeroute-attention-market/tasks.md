@@ -100,13 +100,13 @@ seeded simulator. Constitution Principle VI: nothing in any user story begins un
 
 **Independent test**: `POST /api/scenario/run_normal` with seed 42, then `GET /api/queue` returns exactly 2 routed hypotheses with the genuine payment incident at rank 1 and a non-zero `withheld_count` (quickstart V1, SC-001, SC-004).
 
-- [ ] T030 [US1] Implement hypothesis assembly — group forecasts by hypothesis, compute live `cluster_size` per ranking pass (never incrementally maintained) in `src/stakeroute/worker/pipeline.py`
-- [ ] T031 [US1] Implement the ranking pass — aggregate, score priority, allocate against `ATTENTION_BUDGET`, persist `attention_decisions` rows with rank, reason and JSON `contributions` in `src/stakeroute/worker/pipeline.py`
-- [ ] T032 [P] [US1] Implement `GET /api/queue` per contracts/http-api.md, with `withheld_count` as a required response field, in `src/stakeroute/dashboard/main.py`
-- [ ] T033 [P] [US1] Implement `GET /api/hypotheses/{id}/explain` returning prior, aggregate and per-forecast reputation/probability/stake/cluster/independence/weight/α in `src/stakeroute/dashboard/main.py`
-- [ ] T034 [US1] Implement `POST /api/scenario/run_normal` accepting a seed, driving the simulator through the in-process transport, in `src/stakeroute/dashboard/main.py`
-- [ ] T035 [US1] Write `tests/integration/test_queue_routing.py` — asserts exactly `budget` routed, correct rank 1, withheld count non-zero (SC-001, SC-004)
-- [ ] T036 [US1] Write `tests/integration/test_explain_traceability.py` — asserts every numeric field in `/api/queue` is reconstructible from `/explain`, closing the SC-007 validation gap found by `/speckit-analyze`
+- [x] T030 [US1] Implement hypothesis assembly — group forecasts by hypothesis, compute live `cluster_size` per ranking pass (never incrementally maintained) in `src/stakeroute/worker/pipeline.py`
+- [x] T031 [US1] Implement the ranking pass — aggregate, score priority, allocate against `ATTENTION_BUDGET`, persist `attention_decisions` rows with rank, reason and JSON `contributions` in `src/stakeroute/worker/pipeline.py`
+- [x] T032 [P] [US1] Implement `GET /api/queue` per contracts/http-api.md, with `withheld_count` as a required response field, in `src/stakeroute/dashboard/main.py`
+- [x] T033 [P] [US1] Implement `GET /api/hypotheses/{id}/explain` returning prior, aggregate and per-forecast reputation/probability/stake/cluster/independence/weight/α in `src/stakeroute/dashboard/main.py`
+- [x] T034 [US1] Implement `POST /api/scenario/run_normal` accepting a seed, driving the simulator through the in-process transport, in `src/stakeroute/dashboard/main.py`
+- [x] T035 [US1] Write `tests/integration/test_queue_routing.py` — asserts exactly `budget` routed, correct rank 1, withheld count non-zero (SC-001, SC-004)
+- [x] T036 [US1] Write `tests/integration/test_explain_traceability.py` — asserts every numeric field in `/api/queue` is reconstructible from `/explain`, closing the SC-007 validation gap found by `/speckit-analyze`
 
 **Checkpoint**: US1 independently demonstrable via curl. This is the MVP.
 

@@ -70,13 +70,21 @@ class ScenarioWorld:
 
 
 def generate_world(
-    seed: int, rng: random.Random | None = None, noise_count: int = 500
+    seed: int,
+    rng: random.Random | None = None,
+    noise_count: int = 500,
+    minor_hypothesis_count: int = 3,
 ) -> ScenarioWorld:
     """Generate the baseline demonstration scenario for a given seed.
 
     Produces ``noise_count`` background noise signals, one genuine payment
-    incident, one plausible-but-wrong database hypothesis, and forecasts
-    from the six honest agent profiles on both hypotheses.
+    incident, one plausible-but-wrong database hypothesis, forecasts from
+    the six honest agent profiles on both, and a handful of low-priority
+    "minor" candidate hypotheses backed by only one or two low-confidence
+    forecasts. The minor hypotheses exist so a review budget of 2 has more
+    than 2 candidates to choose from — otherwise nothing would ever be
+    withheld (SC-004), and the queue screen's suppression count would
+    always read zero.
     """
     active_rng = rng if rng is not None else random.Random(seed)
 
@@ -115,11 +123,25 @@ def generate_world(
         created_at_ms=BASE_TIMESTAMP_MS,
         ground_truth=0,
     )
-    hypotheses = (payment_hypothesis, database_hypothesis)
+    minor_hypotheses = tuple(
+        HypothesisSpec(
+            id=f"h-minor-{i}",
+            statement=f"minor_anomaly_{i}",
+            prior_probability=0.15,
+            impact_minor_units=5_000_000,
+            urgency=0.3,
+            review_cost=1.0,
+            deadline_ms=BASE_TIMESTAMP_MS + 3_600_000,
+            created_at_ms=BASE_TIMESTAMP_MS,
+            ground_truth=0,
+        )
+        for i in range(minor_hypothesis_count)
+    )
+    hypotheses = (payment_hypothesis, database_hypothesis, *minor_hypotheses)
 
     forecasts = []
     for profile in HONEST_PROFILES:
-        for hypothesis in hypotheses:
+        for hypothesis in (payment_hypothesis, database_hypothesis):
             ground_truth = bool(hypothesis.ground_truth)
             probability = forecast_probability(active_rng, ground_truth, profile)
             stake = active_rng.randint(10, 40)
@@ -134,6 +156,25 @@ def generate_world(
                 )
             )
 
+    # Minor hypotheses get one low-confidence forecast each, from a single
+    # rotating low-reputation agent — plausible enough to be a candidate,
+    # nowhere near strong enough to outrank the two real contenders.
+    low_confidence_profiles = HONEST_PROFILES[-2:]
+    for i, hypothesis in enumerate(minor_hypotheses):
+        profile = low_confidence_profiles[i % len(low_confidence_profiles)]
+        probability = clamp_low_confidence(active_rng.uniform(0.15, 0.35))
+        stake = active_rng.randint(1, 5)
+        forecasts.append(
+            ForecastSpec(
+                hypothesis_id=hypothesis.id,
+                agent_id=profile.agent_id,
+                probability=probability,
+                stake=stake,
+                evidence_cluster_id=f"{profile.agent_id}-{hypothesis.id}-evidence",
+                source_event_id=f"{profile.agent_id}-{hypothesis.id}-forecast",
+            )
+        )
+
     return ScenarioWorld(
         seed=seed,
         signals=signals,
@@ -141,3 +182,8 @@ def generate_world(
         agents=HONEST_PROFILES,
         forecasts=tuple(forecasts),
     )
+
+
+def clamp_low_confidence(value: float) -> float:
+    """Round a raw draw to 3 decimal places for readable demo output."""
+    return round(value, 3)

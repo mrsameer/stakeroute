@@ -20,7 +20,12 @@ class Repository:
 
     def __init__(self, db_path: str) -> None:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
+        # check_same_thread=False: FastAPI runs sync endpoints in a
+        # threadpool while async endpoints run on the event loop thread, so
+        # the one shared Repository connection is legitimately used from
+        # more than one thread. Access is still effectively serialized —
+        # nothing here issues concurrent writes from separate threads.
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
@@ -470,3 +475,25 @@ class Repository:
         )
         assert cursor.lastrowid is not None
         return cursor.lastrowid
+
+    # -- Reset (demo scenario control) ---------------------------------------
+
+    def reset_tenant(self, tenant_id: str) -> None:
+        """Clear every tenant-scoped row so a scenario can restart clean.
+
+        Used by ``POST /api/scenario/run_normal`` — the tenant row itself
+        and the schema are untouched.
+        """
+        for table in (
+            "settlements",
+            "outcomes",
+            "attention_decisions",
+            "forecasts",
+            "hypotheses",
+            "evidence_clusters",
+            "agents",
+            "events",
+            "epochs",
+        ):
+            self._conn.execute(f"DELETE FROM {table} WHERE tenant_id = ?", (tenant_id,))
+        self._conn.commit()
