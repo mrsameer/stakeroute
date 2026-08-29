@@ -31,3 +31,7 @@ data/*.db-shm
 
 # Claude Code session-internal lock file (not project content)
 .claude/scheduled_tasks.lock
+
+# Local model credentials — never commit
+vertex-ai-credentials.json
+*-credentials.json
