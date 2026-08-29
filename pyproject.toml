@@ -2,6 +2,9 @@
 name = "stakeroute"
 version = "0.1.0"
 description = "StakeRoute — an attention market for autonomous AI agents"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
