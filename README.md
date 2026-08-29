@@ -53,6 +53,65 @@ model call anywhere in that path to begin with, not merely a flag left off (`LLM
 by default; `src/stakeroute/core/` and `src/stakeroute/worker/` contain zero references to any
 model API).
 
+## Architecture
+
+![StakeRoute architecture](architecture.svg)
+
+The event path is deliberately split from the decision path:
+
+- **Durable ingestion:** the simulator publishes to NATS JetStream. The worker persists an event
+  and its economic effect inside a database transaction before acknowledging delivery. Unique
+  event and forecast IDs turn at-least-once delivery into exactly-once economic effects.
+- **Deterministic attention market:** agents submit a probability, stake, and evidence group.
+  StakeRoute weights it by reputation, `sqrt(stake)`, and an independence discount; it then uses
+  an explainable weighted average to produce a probability for each hypothesis.
+- **Budgeted human queue:** the allocator ranks hypotheses by `probability × impact × urgency /
+  review cost`, routing only the top-K items within the declared review budget and recording why
+  the remainder were withheld.
+- **Settlement and memory:** a resolved outcome is scored with a Brier-score-derived settlement.
+  An agent can lose at most its stake; calibrated agents gain credits and reputation while poor
+  forecasts lose future influence.
+
+The dashboard reads the blackboard directly and exposes the queue, agent-level traceability,
+three-strategy comparison, and measured metrics. The full durable deployment uses JetStream,
+separate simulator/worker/dashboard processes, and SQLite for the demo ledger.
+
+## Five-minute judge pitch
+
+**0:00–0:35 — The problem.** When an enterprise runs hundreds of AI agents, any agent can label
+an alert urgent at zero cost. The constrained resource is the on-call operator's attention.
+Confidence voting rewards the confidently wrong agent; majority voting rewards Sybils and shared
+evidence.
+
+**0:35–1:25 — The architecture.** Show the diagram above. Signals and forecasts enter a durable
+stream. The worker commits them to the ledger before acknowledgement, making crashes and
+redelivery safe. The market is deterministic: AI may suggest a hypothesis, but it never decides
+aggregation, ranking, or settlement.
+
+**1:25–2:15 — The baseline.** Run the baseline scenario. With a review budget of two, the
+operator sees exactly two hypotheses and the real payment incident is ranked first. Open its
+explanation to show the probabilities, stakes, evidence groups, and weights behind the decision.
+
+**2:15–3:15 — The attack.** Inject 50 Sybil agents supporting the false database diagnosis.
+Majority vote promotes it to first place; StakeRoute retains the genuine incident because new
+identities have low earned influence and duplicate evidence is discounted.
+
+**3:15–4:00 — The feedback loop.** Resolve the outcome. Agents that improved on the prior gain
+credits and reputation. Confidently wrong agents lose no more than they staked, so influence is
+earned from calibration rather than asserted by confidence or agent count.
+
+**4:00–4:35 — Failure behavior.** In the durable deployment, kill the worker while messages keep
+arriving, then restart it. JetStream redelivers unacknowledged work; idempotency constraints
+ensure there are no lost signals and no duplicate settlements.
+
+**4:35–5:00 — The honest boundary.** This is not permissionless Sybil resistance: identities must
+be enterprise-attested. Evidence independence is a heuristic and can miss hidden correlation.
+SQLite is a deliberate single-writer demo choice; production multi-worker scale-out requires a
+database such as Postgres. The settlement is scoring-rule-derived, not claimed to be formally
+strategy-proof.
+
+> **AI can propose hypotheses, but it does not get to spend human attention for free.**
+
 ## Running it
 
 **Fast loop — the mechanism, no infrastructure** (this is the loop used while building):
