@@ -4,14 +4,26 @@
 
 Built for the Signal Labs AI HackDay (29 August 2026) — Tokenomics track.
 
-## Watch the demo
+## Start here
+
+| Resource | Open it |
+|---|---|
+| **Five-minute explainer** — source code, architecture, mechanism, and design decisions | [▶ Play the committed MP4](output/explainer-video/stakeroute-explainer-5min.mp4) · [Play in Google Drive](https://drive.google.com/file/d/14NFAUN26CUQ1_SRVZtlISUssFPGDrUWX/preview) |
+| **Design document** — the problem, data flow, trade-offs, failure modes, and validation in two pages | [Read the live Google Doc](https://docs.google.com/document/d/1JmyWAYfUOo4VfFgOgav-cX3UyEuV6os-rSywVQatLJ0/edit) · [Open the repository PDF](docs/StakeRoute-Design-Document.pdf) |
+| **Run the application** | [Jump to the setup instructions](#running-it) |
+
+GitHub opens the committed MP4 in its video player. If that player is unavailable, use the
+Google Drive link above.
+
+## 20-second product preview
 
 The 20-second walkthrough shows the ranked attention queue, transparent per-agent
 weights, Sybil resistance, and settlement after ground truth arrives.
 
-![StakeRoute demo](output/demo-video/stakeroute-demo.gif)
+[![StakeRoute demo — click to play the full five-minute explainer](output/demo-video/stakeroute-demo.gif)](output/explainer-video/stakeroute-explainer-5min.mp4)
 
-[Open the demo animation](output/demo-video/stakeroute-demo.gif)
+[▶ Play the full five-minute explainer](output/explainer-video/stakeroute-explainer-5min.mp4)
+· [Open the short demo animation](output/demo-video/stakeroute-demo.gif)
 
 > When a company runs 1,000 AI agents, every agent can say something is urgent, for free.
 > StakeRoute makes them put economic weight behind that claim, rewards calibrated agents,
