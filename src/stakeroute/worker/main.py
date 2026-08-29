@@ -87,8 +87,14 @@ def handle_forecast_created(payload: dict, repo: Repository, tenant_id: str) -> 
     if not (STAKE_MIN <= stake <= STAKE_MAX):
         return  # rejected: stake outside configured limits (FR-008)
 
-    previous_available = agent["available_credits"]
-    if stake > previous_available:
+    # Validate against the *net* delta: a resubmission on the same
+    # hypothesis first frees its old stake, so the true ceiling on the new
+    # stake is available_credits + whatever this agent already has locked
+    # here — not the raw available balance alone (FR-044).
+    existing_forecast = repo.get_live_forecast(hypothesis_id, agent_id)
+    already_locked_here = existing_forecast["stake"] if existing_forecast else 0
+    effective_available = agent["available_credits"] + already_locked_here
+    if stake > effective_available:
         return  # rejected: insufficient available credits (FR-008)
 
     evidence_cluster_id = body["evidence_cluster_id"]

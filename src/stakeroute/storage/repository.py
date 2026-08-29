@@ -244,6 +244,21 @@ class Repository:
 
     # -- Forecasts --------------------------------------------------------
 
+    def get_live_forecast(
+        self, hypothesis_id: str, agent_id: str
+    ) -> sqlite3.Row | None:
+        """Look up an agent's current live forecast on a hypothesis, if any.
+
+        Used to validate a resubmission against the *net* stake delta
+        rather than the raw available balance (FR-044) — replacing a
+        forecast at the same stake must not be rejected just because the
+        original charge already left the balance low.
+        """
+        return self._conn.execute(
+            "SELECT * FROM forecasts WHERE hypothesis_id = ? AND agent_id = ?",
+            (hypothesis_id, agent_id),
+        ).fetchone()
+
     def upsert_forecast(
         self,
         forecast_id: str,

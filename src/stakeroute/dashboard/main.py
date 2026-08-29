@@ -9,14 +9,18 @@ through the in-process transport (Phase 3–6); Phase 7 adds a standalone
 from __future__ import annotations
 
 import json
+import random
 import time
+from collections.abc import Iterable
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from stakeroute.config import ATTENTION_BUDGET, DB_PATH, DEFAULT_TENANT_ID, EPOCH_GRANT
 from stakeroute.core.types import compute_event_id
-from stakeroute.simulator.scenarios import ScenarioWorld, generate_world
+from stakeroute.simulator.agents import AgentProfile
+from stakeroute.simulator.scenarios import ForecastSpec, ScenarioWorld, generate_world
+from stakeroute.simulator.stress import inject_correlated, inject_sybils
 from stakeroute.storage.repository import Repository
 from stakeroute.transport.memory import MemoryTransport
 from stakeroute.worker.main import (
@@ -26,12 +30,17 @@ from stakeroute.worker.main import (
     handle_forecast_created,
     handle_signal,
 )
-from stakeroute.worker.pipeline import run_ranking_pass
+from stakeroute.worker.pipeline import STRATEGIES, run_ranking_pass
 
 app = FastAPI(title="StakeRoute")
 
 _repo: Repository | None = None
 _transport = MemoryTransport()
+# Ground truth is a simulator-known fact, not part of the persisted domain
+# model — the real system does not know it before resolution. Exposed here
+# only so the attack demo (User Story 2) can be narrated against reality
+# before a hypothesis actually resolves. Reset on every run_normal.
+_ground_truth: dict[str, int] = {}
 
 
 def now_ms() -> int:
@@ -47,19 +56,9 @@ def get_repo() -> Repository:
     return _repo
 
 
-async def _ingest_world(
-    repo: Repository,
-    transport: MemoryTransport,
-    tenant_id: str,
-    world: ScenarioWorld,
-    now: int,
+async def _ingest_signals(
+    repo: Repository, transport: MemoryTransport, tenant_id: str, world: ScenarioWorld
 ) -> None:
-    """Publish a scenario world's signals and forecasts, then consume them.
-
-    Mirrors the real subject flow (contracts/events.md) end to end, just
-    over the in-process transport rather than JetStream — the same
-    ``consume_once`` and handlers Phase 7 points at a live broker.
-    """
     for signal in world.signals:
         event_id = compute_event_id(
             tenant_id, signal.source, signal.source_event_id, signal.observed_at_ms
@@ -82,22 +81,11 @@ async def _ingest_world(
         transport, SIGNALS_RAW, "dashboard", repo, tenant_id, handle_signal
     )
 
-    for hypothesis in world.hypotheses:
-        repo.upsert_hypothesis(
-            hypothesis_id=hypothesis.id,
-            tenant_id=tenant_id,
-            statement=hypothesis.statement,
-            prior_probability=hypothesis.prior_probability,
-            impact_minor_units=hypothesis.impact_minor_units,
-            urgency=hypothesis.urgency,
-            review_cost=hypothesis.review_cost,
-            deadline_ms=hypothesis.deadline_ms,
-            status="open",
-            created_at_ms=hypothesis.created_at_ms,
-        )
-    repo.commit()
 
-    for agent in world.agents:
+def _ingest_agents(
+    repo: Repository, agents: Iterable[AgentProfile], tenant_id: str, now: int
+) -> None:
+    for agent in agents:
         repo.upsert_agent(
             agent_id=agent.agent_id,
             tenant_id=tenant_id,
@@ -110,7 +98,21 @@ async def _ingest_world(
         )
     repo.commit()
 
-    for forecast in world.forecasts:
+
+async def _ingest_forecasts(
+    repo: Repository,
+    transport: MemoryTransport,
+    tenant_id: str,
+    forecasts: Iterable[ForecastSpec],
+    now: int,
+) -> None:
+    """Publish forecasts to ``forecasts.created`` and consume them.
+
+    Mirrors the real subject flow (contracts/events.md) end to end over the
+    in-process transport — the same ``consume_once`` and handler Phase 7
+    points at a live broker instead.
+    """
+    for forecast in forecasts:
         event_id = compute_event_id(
             tenant_id, "forecasts", forecast.source_event_id, now
         )
@@ -153,14 +155,83 @@ async def run_normal(request: RunNormalRequest) -> dict:
     tenant_id = DEFAULT_TENANT_ID
     now = now_ms()
     repo.reset_tenant(tenant_id)
+    _ground_truth.clear()
+
     world = generate_world(seed=request.seed)
-    await _ingest_world(repo, _transport, tenant_id, world, now)
-    result = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
-    routed = sum(1 for d in result.allocation.decisions if d.routed)
+    for hypothesis in world.hypotheses:
+        repo.upsert_hypothesis(
+            hypothesis_id=hypothesis.id,
+            tenant_id=tenant_id,
+            statement=hypothesis.statement,
+            prior_probability=hypothesis.prior_probability,
+            impact_minor_units=hypothesis.impact_minor_units,
+            urgency=hypothesis.urgency,
+            review_cost=hypothesis.review_cost,
+            deadline_ms=hypothesis.deadline_ms,
+            status="open",
+            created_at_ms=hypothesis.created_at_ms,
+        )
+        _ground_truth[hypothesis.id] = hypothesis.ground_truth
+    repo.commit()
+
+    _ingest_agents(repo, world.agents, tenant_id, now)
+    await _ingest_signals(repo, _transport, tenant_id, world)
+    await _ingest_forecasts(repo, _transport, tenant_id, world.forecasts, now)
+
+    results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    stakeroute_result = results["stakeroute"]
+    routed = sum(1 for d in stakeroute_result.allocation.decisions if d.routed)
     return {
         "seed": request.seed,
         "routed": routed,
-        "withheld_count": result.allocation.withheld_count,
+        "withheld_count": stakeroute_result.allocation.withheld_count,
+    }
+
+
+class InjectSybilsRequest(BaseModel):
+    count: int = 50
+    target: str = "h-database-saturation"
+    seed: int = 1000
+
+
+@app.post("/api/scenario/inject_sybils")
+async def inject_sybils_endpoint(request: InjectSybilsRequest) -> dict:
+    """Flood ``target`` with new, unattested, floor-reputation agents (SC-002)."""
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+    now = now_ms()
+    rng = random.Random(request.seed)
+    agents, forecasts = inject_sybils(rng, request.count, request.target)
+    _ingest_agents(repo, agents, tenant_id, now)
+    await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
+    run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    return {"injected": request.count, "target": request.target}
+
+
+class InjectCorrelatedRequest(BaseModel):
+    count: int = 20
+    cluster: str = "database-observability"
+    target: str = "h-database-saturation"
+    seed: int = 2000
+
+
+@app.post("/api/scenario/inject_correlated")
+async def inject_correlated_endpoint(request: InjectCorrelatedRequest) -> dict:
+    """Flood ``target`` with agents all citing the same evidence cluster (SC-003)."""
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+    now = now_ms()
+    rng = random.Random(request.seed)
+    agents, forecasts = inject_correlated(
+        rng, request.count, request.cluster, request.target
+    )
+    _ingest_agents(repo, agents, tenant_id, now)
+    await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
+    run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    return {
+        "injected": request.count,
+        "cluster": request.cluster,
+        "target": request.target,
     }
 
 
@@ -227,3 +298,25 @@ def explain(hypothesis_id: str) -> dict:
         "aggregated_probability": row["aggregated_probability"],
         "contributions": json.loads(row["contributions"]),
     }
+
+
+@app.get("/api/comparison")
+def comparison() -> dict:
+    """Side-by-side strategy rankings over the identical event stream
+    (FR-023, FR-032, SC-002)."""
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+    strategies = {}
+    for strategy in STRATEGIES:
+        decisions = sorted(
+            repo.latest_decisions(tenant_id, strategy), key=lambda r: r["rank"]
+        )
+        strategies[strategy] = [
+            {
+                "rank": row["rank"],
+                "hypothesis_id": row["hypothesis_id"],
+                "probability": row["aggregated_probability"],
+            }
+            for row in decisions
+        ]
+    return {"strategies": strategies, "ground_truth": dict(_ground_truth)}

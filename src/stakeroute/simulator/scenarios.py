@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from stakeroute.simulator.agents import (
     HONEST_PROFILES,
+    MINOR_HYPOTHESIS_PROFILES,
     AgentProfile,
     forecast_probability,
 )
@@ -159,9 +160,8 @@ def generate_world(
     # Minor hypotheses get one low-confidence forecast each, from a single
     # rotating low-reputation agent — plausible enough to be a candidate,
     # nowhere near strong enough to outrank the two real contenders.
-    low_confidence_profiles = HONEST_PROFILES[-2:]
     for i, hypothesis in enumerate(minor_hypotheses):
-        profile = low_confidence_profiles[i % len(low_confidence_profiles)]
+        profile = MINOR_HYPOTHESIS_PROFILES[i % len(MINOR_HYPOTHESIS_PROFILES)]
         probability = clamp_low_confidence(active_rng.uniform(0.15, 0.35))
         stake = active_rng.randint(1, 5)
         forecasts.append(

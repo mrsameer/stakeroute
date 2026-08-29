@@ -25,27 +25,50 @@ class AgentProfile:
     attested: bool = True
 
 
-HONEST_PROFILES: tuple[AgentProfile, ...] = (
-    AgentProfile(
-        "payment-agent-1", "Payment Specialist", accuracy=0.90, starting_reputation=0.70
-    ),
-    AgentProfile(
-        "security-agent-1",
-        "Security Specialist",
-        accuracy=0.85,
-        starting_reputation=0.65,
-    ),
-    AgentProfile(
-        "general-agent-1", "General Agent A", accuracy=0.70, starting_reputation=0.50
-    ),
-    AgentProfile(
-        "general-agent-2", "General Agent B", accuracy=0.70, starting_reputation=0.50
-    ),
-    AgentProfile(
-        "noisy-agent-1", "Noisy Agent", accuracy=0.55, starting_reputation=0.40
-    ),
-    AgentProfile("new-agent-1", "New Agent", accuracy=0.65, starting_reputation=0.15),
+# The population named by T027: payment specialist, security specialist,
+# general, noisy, malicious (inverted), and a newly-created low-reputation
+# agent. The malicious agent is a permanent member of the baseline
+# population, not an attack-time injection — it is what keeps the honest
+# population's own majority-vote tally short of a perfect, unbeatable 1.0,
+# which is what a real population with one bad-faith participant looks
+# like.
+PAYMENT_SPECIALIST = AgentProfile(
+    "payment-agent-1", "Payment Specialist", accuracy=0.90, starting_reputation=0.70
 )
+SECURITY_SPECIALIST = AgentProfile(
+    "security-agent-1", "Security Specialist", accuracy=0.85, starting_reputation=0.65
+)
+GENERAL_AGENT = AgentProfile(
+    "general-agent-1", "General Agent", accuracy=0.70, starting_reputation=0.50
+)
+NOISY_AGENT = AgentProfile(
+    "noisy-agent-1", "Noisy Agent", accuracy=0.55, starting_reputation=0.40
+)
+MALICIOUS_AGENT = AgentProfile(
+    "malicious-agent-1",
+    "Malicious Agent",
+    accuracy=0.50,
+    starting_reputation=0.30,
+    malicious=True,
+)
+NEW_AGENT = AgentProfile(
+    "new-agent-1", "New Agent", accuracy=0.65, starting_reputation=0.15
+)
+
+HONEST_PROFILES: tuple[AgentProfile, ...] = (
+    PAYMENT_SPECIALIST,
+    SECURITY_SPECIALIST,
+    GENERAL_AGENT,
+    NOISY_AGENT,
+    MALICIOUS_AGENT,
+    NEW_AGENT,
+)
+
+# The two lowest-conviction, most plausible-to-be-wrong profiles — used to
+# back the simulator's low-confidence "minor" candidate hypotheses. The
+# malicious agent is deliberately excluded here: its role is targeted
+# deception against the real hypotheses, not noise on irrelevant ones.
+MINOR_HYPOTHESIS_PROFILES: tuple[AgentProfile, ...] = (NOISY_AGENT, NEW_AGENT)
 
 
 def forecast_probability(

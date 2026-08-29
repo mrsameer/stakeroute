@@ -118,17 +118,17 @@ seeded simulator. Constitution Principle VI: nothing in any user story begins un
 
 **Independent test**: Inject 50 Sybils; `GET /api/comparison` shows `majority_vote` ranking the false hypothesis first while `stakeroute` keeps the true incident in its top 2 (quickstart V2, SC-002).
 
-- [ ] T037 [P] [US2] Implement `rank_majority_vote()` — one unweighted vote per forecast above 0.5 — in `src/stakeroute/core/baselines.py`
-- [ ] T038 [P] [US2] Implement `rank_highest_confidence()` — rank by maximum self-reported probability — in `src/stakeroute/core/baselines.py`
-- [ ] T039 [US2] Write `tests/unit/test_baselines.py` — assert each baseline exhibits its intended failure mode; a baseline that does not break under attack is a broken baseline
-- [ ] T040 [US2] Persist all three strategies per ranking pass to `attention_decisions.strategy` in `src/stakeroute/worker/pipeline.py`
-- [ ] T041 [P] [US2] Implement Sybil injection — N new agents at floor reputation, attested flag false, backing a target hypothesis — in `src/stakeroute/simulator/stress.py`
-- [ ] T042 [P] [US2] Implement correlated-evidence injection — N agents citing one existing `evidence_cluster_id` — in `src/stakeroute/simulator/stress.py`
-- [ ] T043 [US2] Implement `POST /api/scenario/inject_sybils` and `POST /api/scenario/inject_correlated` in `src/stakeroute/dashboard/main.py`
-- [ ] T044 [P] [US2] Implement `GET /api/comparison` returning all three strategy rankings plus ground truth in `src/stakeroute/dashboard/main.py`
-- [ ] T045 [US2] Write `tests/integration/test_sybil.py` — SC-002 as an automated assertion: majority vote flips, StakeRoute holds top 2
-- [ ] T046 [US2] Write `tests/integration/test_correlated_evidence.py` — SC-003: aggregated probability moves ≤ 5 percentage points after 20 correlated forecasts
-- [ ] T047 [US2] Write `tests/integration/test_capital_exhaustion.py` — an agent staking maximally on every signal is rejected once its epoch budget is spent (US2 acceptance scenario 3)
+- [x] T037 [P] [US2] Implement `rank_majority_vote()` — one unweighted vote per forecast above 0.5 — in `src/stakeroute/core/baselines.py`
+- [x] T038 [P] [US2] Implement `rank_highest_confidence()` — rank by maximum self-reported probability — in `src/stakeroute/core/baselines.py`
+- [x] T039 [US2] Write `tests/unit/test_baselines.py` — assert each baseline exhibits its intended failure mode; a baseline that does not break under attack is a broken baseline
+- [x] T040 [US2] Persist all three strategies per ranking pass to `attention_decisions.strategy` in `src/stakeroute/worker/pipeline.py`
+- [x] T041 [P] [US2] Implement Sybil injection — N new agents at floor reputation, attested flag false, backing a target hypothesis — in `src/stakeroute/simulator/stress.py`
+- [x] T042 [P] [US2] Implement correlated-evidence injection — N agents citing one existing `evidence_cluster_id` — in `src/stakeroute/simulator/stress.py`
+- [x] T043 [US2] Implement `POST /api/scenario/inject_sybils` and `POST /api/scenario/inject_correlated` in `src/stakeroute/dashboard/main.py`
+- [x] T044 [P] [US2] Implement `GET /api/comparison` returning all three strategy rankings plus ground truth in `src/stakeroute/dashboard/main.py`
+- [x] T045 [US2] Write `tests/integration/test_sybil.py` — SC-002 as an automated assertion: majority vote flips, StakeRoute holds top 2
+- [x] T046 [US2] Write `tests/integration/test_correlated_evidence.py` — SC-003: aggregated probability moves ≤ 5 percentage points after 20 correlated forecasts
+- [x] T047 [US2] Write `tests/integration/test_capital_exhaustion.py` — an agent staking maximally on every signal is rejected once its epoch budget is spent (US2 acceptance scenario 3)
 
 **Checkpoint**: The attack demo works headlessly. This is the highest-value phase for judging.
 
