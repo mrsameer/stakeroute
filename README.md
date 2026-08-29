@@ -105,8 +105,3 @@ This is a hackathon prototype, and the specification is explicit about what has 
   sharing a consumer, and the ledger's uniqueness constraints already make that safe — but the
   demo store is SQLite, so the demo runs a single writer process by design. Moving to Postgres is
   the change that would make true multi-worker scale-out real, and it is not done here.
-- This is a confirmed single-contributor build (see
-  [`plan.md`](specs/001-stakeroute-attention-market/plan.md#team-allocation-and-adversarial-review)):
-  the adversarial reviewer and the implementer are the same person, which is materially weaker
-  than an independent attacker. Independence is approximated by mechanisation — the attack tests
-  were written before the mechanism they attack was tuned — not by a second set of eyes.
