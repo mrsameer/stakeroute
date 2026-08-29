@@ -181,12 +181,12 @@ confuse a mechanical failure with an operational one.
 **Independent test**: `docker compose kill worker`, keep publishing, restart, then the settlements duplicate-check query returns zero rows (quickstart V4, SC-005).
 
 - [ ] T063 [US4] Implement the JetStream driver against `SignalTransport` — durable pull consumers, explicit ack, 30s ack wait, stream `STAKEROUTE` — in `src/stakeroute/transport/jetstream.py`
-- [ ] T064 [US4] Implement `event_id = sha256(tenant_id|source|source_event_id|floor(ts_ms/1000))` in `src/stakeroute/core/types.py` and apply it at every publish site
-- [ ] T065 [US4] Implement the worker consume loop with strict `receive → BEGIN → insert → effect → COMMIT → ACK` ordering in `src/stakeroute/worker/main.py`
-- [ ] T066 [US4] Implement subject handlers for `signals.raw`, `forecasts.created` and `outcomes.resolved` per contracts/events.md in `src/stakeroute/worker/main.py`
-- [ ] T067 [US4] Implement `hypotheses.updated` publication after each ranking pass, carrying all three strategies and contributions, in `src/stakeroute/worker/pipeline.py`
-- [ ] T068 [US4] Write `tests/integration/test_idempotency.py` — redeliver every message class twice via the memory driver; assert one `events` row, one `settlements` row per forecast, identical final balances (SC-005, FR-003)
-- [ ] T069 [US4] Write `tests/integration/test_crash_recovery.py` — simulate consumer death before ack; assert redelivery completes the work and applies no second economic effect
+- [x] T064 [US4] Implement `event_id = sha256(tenant_id|source|source_event_id|floor(ts_ms/1000))` in `src/stakeroute/core/types.py` and apply it at every publish site
+- [x] T065 [US4] Implement the worker consume loop with strict `receive → BEGIN → insert → effect → COMMIT → ACK` ordering in `src/stakeroute/worker/main.py`
+- [x] T066 [US4] Implement subject handlers for `signals.raw`, `forecasts.created` and `outcomes.resolved` per contracts/events.md in `src/stakeroute/worker/main.py`
+- [x] T067 [US4] Implement `hypotheses.updated` publication after each ranking pass, carrying all three strategies and contributions, in `src/stakeroute/worker/pipeline.py`
+- [x] T068 [US4] Write `tests/integration/test_idempotency.py` — redeliver every message class twice via the memory driver; assert one `events` row, one `settlements` row per forecast, identical final balances (SC-005, FR-003)
+- [x] T069 [US4] Write `tests/integration/test_crash_recovery.py` — simulate consumer death before ack; assert redelivery completes the work and applies no second economic effect
 - [ ] T070 [US4] Write `docker-compose.yml` — `nats` with a health check, plus `worker`, `dashboard`, `simulator`; worker restart policy set so `docker compose start worker` recovers
 - [ ] T071 [US4] Write `Dockerfile` for the three application processes
 - [ ] T072 [US4] Execute quickstart V4 end to end and record the duplicate-settlement query result in the run log

@@ -21,8 +21,10 @@ from stakeroute.core.types import (
     AllocationResult,
     ForecastSnapshot,
     RankedHypothesis,
+    compute_event_id,
 )
 from stakeroute.storage.repository import Repository
+from stakeroute.worker.main import HYPOTHESES_UPDATED
 
 STRATEGIES = ("stakeroute", "majority_vote", "highest_confidence")
 
@@ -204,3 +206,69 @@ def run_ranking_pass(
     }
     repo.commit()
     return results
+
+
+async def publish_hypothesis_updates(
+    transport,
+    tenant_id: str,
+    results: dict[str, RankingPassResult],
+    decided_at_ms: int,
+) -> None:
+    """Publish ``hypotheses.updated`` for every ranked hypothesis
+    (contracts/events.md).
+
+    Carries all three strategies' probability/priority/rank/routed so the
+    comparison is transported, not recomputed by whoever consumes it, plus
+    the StakeRoute contributions that make the result explainable.
+    """
+    stakeroute = results["stakeroute"]
+    hypothesis_ids = sorted({r.hypothesis_id for r in stakeroute.ranked})
+
+    decisions_by_strategy = {
+        strategy: {d.hypothesis_id: d for d in result.allocation.decisions}
+        for strategy, result in results.items()
+    }
+    ranked_by_strategy = {
+        strategy: {r.hypothesis_id: r for r in result.ranked}
+        for strategy, result in results.items()
+    }
+
+    for hypothesis_id in hypothesis_ids:
+        strategies_payload = {}
+        for strategy in STRATEGIES:
+            decision = decisions_by_strategy[strategy].get(hypothesis_id)
+            ranked = ranked_by_strategy[strategy].get(hypothesis_id)
+            if decision is None or ranked is None:
+                continue
+            strategies_payload[strategy] = {
+                "probability": ranked.probability,
+                "priority": ranked.priority,
+                "rank": decision.rank,
+                "routed": decision.routed,
+            }
+
+        stakeroute_decision = decisions_by_strategy["stakeroute"].get(hypothesis_id)
+        stakeroute_aggregate = stakeroute.aggregates.get(hypothesis_id)
+        contributions = (
+            _contributions_json(stakeroute_aggregate) if stakeroute_aggregate else []
+        )
+        reason = stakeroute_decision.reason if stakeroute_decision else ""
+
+        event_id = compute_event_id(
+            tenant_id, "hypotheses", hypothesis_id, decided_at_ms
+        )
+        await transport.publish(
+            HYPOTHESES_UPDATED,
+            {
+                "tenant_id": tenant_id,
+                "event_id": event_id,
+                "emitted_at_ms": decided_at_ms,
+                "payload": {
+                    "hypothesis_id": hypothesis_id,
+                    "strategies": strategies_payload,
+                    "contributions": contributions,
+                    "reason": reason,
+                    "withheld_count": stakeroute.allocation.withheld_count,
+                },
+            },
+        )

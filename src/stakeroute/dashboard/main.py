@@ -40,7 +40,11 @@ from stakeroute.worker.main import (
     handle_outcome_resolved,
     handle_signal,
 )
-from stakeroute.worker.pipeline import STRATEGIES, run_ranking_pass
+from stakeroute.worker.pipeline import (
+    STRATEGIES,
+    publish_hypothesis_updates,
+    run_ranking_pass,
+)
 
 app = FastAPI(title="StakeRoute")
 
@@ -192,6 +196,7 @@ async def run_normal(request: RunNormalRequest) -> dict:
     await _ingest_forecasts(repo, _transport, tenant_id, world.forecasts, now)
 
     results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    await publish_hypothesis_updates(_transport, tenant_id, results, now)
     stakeroute_result = results["stakeroute"]
     routed = sum(1 for d in stakeroute_result.allocation.decisions if d.routed)
     return {
@@ -217,7 +222,8 @@ async def inject_sybils_endpoint(request: InjectSybilsRequest) -> dict:
     agents, forecasts = inject_sybils(rng, request.count, request.target)
     _ingest_agents(repo, agents, tenant_id, now)
     await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
-    run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    await publish_hypothesis_updates(_transport, tenant_id, results, now)
     return {"injected": request.count, "target": request.target}
 
 
@@ -240,7 +246,8 @@ async def inject_correlated_endpoint(request: InjectCorrelatedRequest) -> dict:
     )
     _ingest_agents(repo, agents, tenant_id, now)
     await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
-    run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
+    await publish_hypothesis_updates(_transport, tenant_id, results, now)
     return {
         "injected": request.count,
         "cluster": request.cluster,

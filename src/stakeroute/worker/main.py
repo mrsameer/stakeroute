@@ -21,6 +21,7 @@ from stakeroute.worker.settlement_runner import settle_hypothesis
 SIGNALS_RAW = "signals.raw"
 FORECASTS_CREATED = "forecasts.created"
 OUTCOMES_RESOLVED = "outcomes.resolved"
+HYPOTHESES_UPDATED = "hypotheses.updated"
 
 Handler = Callable[[dict, Repository, str], None]
 
