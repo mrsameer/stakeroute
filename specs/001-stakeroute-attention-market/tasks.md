@@ -217,7 +217,7 @@ Deferred to here by Principle VI. Everything below presents facts already proven
 Includes remediation for the findings from `/speckit-analyze`.
 
 - [ ] T081 Amend **FR-031** in `specs/001-stakeroute-attention-market/spec.md` — scope the required controls to the four scenario actions and state that component termination is operator-executed out-of-band. Resolves finding F1, where the spec's MUST contradicts contracts/http-api.md
-- [ ] T082 Assign the adversarial reviewer by name in `specs/001-stakeroute-attention-market/spec.md`, then correct the Development Workflow gate citation in `plan.md`. Resolves finding D1 — currently a CRITICAL constitution gate marked PASS against a section that does not exist
+- [x] T082 **DONE** — Added "Team Allocation and Adversarial Review" to `specs/001-stakeroute-attention-market/plan.md` and corrected the Development Workflow gate to cite it. Resolves finding D1. Placed in plan.md rather than spec.md as originally worded: staffing is an execution concern, and spec.md is written for non-technical stakeholders. The single-contributor independence limitation is stated in that section under Principle V
 - [ ] T083 [P] Define a measurable threshold for **SC-011** in `spec.md` (ranking-pass lag bound at the stated ingest rate). Resolves ambiguity finding B1; T062 already implements the test
 - [ ] T084 [P] Add **FR-044** to `spec.md` authorising one live forecast per agent per hypothesis with replace-on-resubmit. Resolves finding F2 — this mechanism decision currently exists only as a schema constraint
 - [ ] T085 [P] Add urgency and review cost to **FR-012** and to the Hypothesis entity in `spec.md`. Resolves finding C1

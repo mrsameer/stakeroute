@@ -65,7 +65,7 @@ or correlated agents, 1 tenant, 2 human review slots.
 | **V. State What You Have Not Proved** | PASS | PASS | Three limitations already in README; metrics fields are nullable so "unmeasured" is representable without fabricating a number. The SQLite write-concurrency limitation (D-004) is added to that list. |
 | **VI. Demo Path First** | PASS | PASS | Phase ordering below follows mechanism → simulation → baseline → attack → measurement → recovery → UI exactly. |
 | **Additional Constraints** | PASS | PASS | `tenant_id` on every table from the first migration; seeded RNG with deterministic tie-breaks (D-009); probabilities clamped off 0 and 1; loss floored at `−stake`; three application processes (D-008). |
-| **Development Workflow** | PASS | PASS | `uv` only; `pyright`, `ruff` at 88 columns; `pytest` with `anyio`; adversarial reviewer assigned in the spec's team allocation. |
+| **Development Workflow** | PASS | PASS | `uv` only; `pyright`, `ruff` at 88 columns; `pytest` with `anyio`; adversarial review assigned in [Team Allocation and Adversarial Review](#team-allocation-and-adversarial-review) below, with its independence limitation stated there. |
 
 **Violations requiring justification**: none. Complexity Tracking is empty.
 
@@ -166,6 +166,45 @@ phase is incomplete.
 Phase 5 preceding phase 6 is deliberate: metrics computed over an in-process run are what tell us
 the mechanism works *before* infrastructure can obscure whether a failure is mechanical or
 operational.
+
+## Team Allocation and Adversarial Review
+
+The constitution's Development Workflow section requires that at least one team member be assigned
+to break the system rather than extend it. This section is that assignment, and it exists because
+the gate above cites it — an earlier revision of this plan marked the gate PASS while citing a
+"team allocation" section of spec.md that did not exist.
+
+Staffing lives here rather than in spec.md deliberately: the specification is written for
+non-technical stakeholders and describes what the system must do, not who builds it.
+
+**Assignment**
+
+| Role | Owner | Responsibility |
+|---|---|---|
+| Mechanism and pipeline | Repository owner (`mrsameer`) | Core library, worker, storage, transport |
+| Adversarial review | Repository owner (`mrsameer`) | Break the system; own the attack suite |
+
+**Scope of adversarial review**: duplicate settlement under redelivery, reputation exploits,
+undetected evidence correlation, capital exhaustion, race conditions between the ranking pass and
+settlement, and malformed or boundary-valued forecasts. Findings feed the demo's trade-off segment
+as evidence rather than speculation.
+
+**Limitation — stated under Principle V.** On the current single-contributor allocation the
+adversarial reviewer and the implementer are the same person, which is materially weaker than an
+independent attacker: an author tends to attack a system along the axes they already considered
+while building it. The constitutional requirement is met in letter, and the honest reading is that
+it is met weakly.
+
+Two things partially compensate, and neither fully closes the gap:
+
+1. The attack surface is mechanised rather than reviewed by eye — T045, T046, T047, T068 and T069
+   are executable adversarial tests that fail loudly and repeatedly, not a one-time inspection.
+2. The baseline strategies (T037–T039) are written to fail on purpose, so a mechanism that stops
+   discriminating between them breaks a test rather than passing silently.
+
+**If a second contributor joins**, adversarial review moves to them and this table is updated in
+the same commit. Whoever holds the role does not write mechanism code — the value of the role is
+its independence, and the instruction that goes with it is: *your job is to make us lose.*
 
 ## Complexity Tracking
 
