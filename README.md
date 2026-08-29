@@ -4,6 +4,15 @@
 
 Built for the Signal Labs AI HackDay (29 August 2026) — Tokenomics track.
 
+## Watch the demo
+
+The 20-second walkthrough shows the ranked attention queue, transparent per-agent
+weights, Sybil resistance, and settlement after ground truth arrives.
+
+![StakeRoute demo](output/demo-video/stakeroute-demo.gif)
+
+[Open the demo animation](output/demo-video/stakeroute-demo.gif)
+
 > When a company runs 1,000 AI agents, every agent can say something is urgent, for free.
 > StakeRoute makes them put economic weight behind that claim, rewards calibrated agents,
 > discounts correlated evidence, and spends human attention only on the highest-value hypotheses.
