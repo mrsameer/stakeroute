@@ -24,8 +24,10 @@ each maps to a distinct, independently verifiable gate.
 
 Templates requiring updates:
   ✅ .specify/templates/plan-template.md — Constitution Check gate populated
-  ✅ .specify/templates/tasks-template.md — "tests are OPTIONAL" reversed to match the
-     mandatory testing discipline below; sample auth task replaced (auth is out of scope)
+  ✅ .specify/templates/tasks-template.md — mandatory-testing note added at the top, and
+     the per-story "(OPTIONAL - only if tests requested)" headings plus the "(if
+     requested)" / "(if included)" qualifiers reversed to match the testing discipline
+     below; sample auth task replaced (auth is out of scope)
   ✅ .specify/templates/spec-template.md — no change needed; mandatory sections
      already align (Assumptions + Success Criteria carry Principle V obligations)
   ✅ README.md — "Design boundary" and "What this is not" already state
