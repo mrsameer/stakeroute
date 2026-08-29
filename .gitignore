@@ -19,6 +19,11 @@ venv/
 .idea/
 .vscode/
 
+# Local demo-capture intermediates (the published animation is tracked)
+.playwright-cli/
+output/playwright/
+output/demo-video/*.png
+
 # StakeRoute runtime data
 data/*.db
 data/*.db-wal
