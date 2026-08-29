@@ -65,12 +65,23 @@ MIN_RESOLVED_FOR_CALIBRATION = 10
 
 # Collectors and proposal cadence (D-015, contracts/observations.md)
 COLLECTOR_POLL_INTERVAL_S = 2.0
+REPO_POLL_INTERVAL_S = 30.0  # git log/status and test results poll slower
 SOURCE_SILENCE_THRESHOLD_MS = 30_000
 PROPOSAL_INTERVAL_S = 30.0
 OBSERVATIONS_PER_INTERVAL_LIMIT = 50
 
+# Gemini adapter (D-011) — only consulted when STAKEROUTE_MODEL=gemini
+GEMINI_MODEL_NAME = os.environ.get("STAKEROUTE_GEMINI_MODEL", "gemini-2.0-flash-001")
+GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 # Duplicate detection (D-023)
 DUPLICATE_JACCARD_THRESHOLD = 0.6
+DUPLICATE_WINDOW_MS = 5 * 60 * 1000  # five minutes
 
 # Reputation decay (D-021)
 REPUTATION_HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000  # one week
+
+# Real-mode hypothesis review deadline (FR-107). Independent of feature
+# 001's scenario-generated deadlines, which stay simulator-only.
+REAL_HYPOTHESIS_DEADLINE_MS = 60 * 60 * 1000  # one hour

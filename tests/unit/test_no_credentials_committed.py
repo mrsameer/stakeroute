@@ -21,6 +21,14 @@ CREDENTIAL_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 ]
 
+# Test fixtures that deliberately contain synthetic, credential-*shaped*
+# strings to exercise the redaction rules themselves
+# (tests/unit/test_redaction.py, contracts/observations.md's rule 5). These
+# are fake — the point of that test file is that such strings must be
+# redacted before they ever reach a real payload — so they are excluded
+# here rather than the scan being weakened for every other file.
+_KNOWN_SYNTHETIC_FIXTURES = {"tests/unit/test_redaction.py"}
+
 
 def _tracked_files() -> list[str]:
     result = subprocess.run(
@@ -36,6 +44,8 @@ def _tracked_files() -> list[str]:
 def test_no_git_tracked_file_contains_a_credential_shaped_string() -> None:
     offenders: list[str] = []
     for rel_path in _tracked_files():
+        if rel_path in _KNOWN_SYNTHETIC_FIXTURES:
+            continue
         path = REPO_ROOT / rel_path
         if not path.is_file():
             continue

@@ -117,31 +117,31 @@ the codebase or configuration and trace to the specific observed records that pr
 
 ### Tests for User Story 2 (REQUIRED — mechanism and economics, Principle III) ⚠️
 
-- [ ] T036 [P] [US2] Write `tests/integration/test_real_ingestion.py` — real provenance and timestamps recorded, stable `source_event_id`, out-of-order and past-dated arrivals producing no duplicate economic effect (FR-102, FR-104)
-- [ ] T037 [P] [US2] Write `tests/unit/test_source_liveness.py` — `live → quiet → silent` transitions, any observation returning a source to `live`, and `absent` as terminal with a required reason (FR-141)
-- [ ] T038 [P] [US2] Write `tests/integration/test_proposal_pipeline.py` — a proposal cites real `events` rows, an unknown or out-of-window citation rejects the whole proposal, and nothing enters the ranked queue before it is durably recorded (FR-107, FR-111, FR-122)
-- [ ] T039 [P] [US2] Write `tests/integration/test_tenant_separation.py` — zero real-mode rows carry `acmepay`, zero simulated rows carry `hostops`, and any endpoint naming more than one tenant is refused (SC-117, FR-147)
-- [ ] T040 [P] [US2] Write `tests/integration/test_redaction_egress.py` — the five-category scan over `events.payload` **and** `model_interactions.request` across 100% of rows (SC-115, FR-146)
+- [X] T036 [P] [US2] Write `tests/integration/test_real_ingestion.py` — real provenance and timestamps recorded, stable `source_event_id`, out-of-order and past-dated arrivals producing no duplicate economic effect (FR-102, FR-104)
+- [X] T037 [P] [US2] Write `tests/unit/test_source_liveness.py` — `live → quiet → silent` transitions, any observation returning a source to `live`, and `absent` as terminal with a required reason (FR-141)
+- [X] T038 [P] [US2] Write `tests/integration/test_proposal_pipeline.py` — a proposal cites real `events` rows, an unknown or out-of-window citation rejects the whole proposal, and nothing enters the ranked queue before it is durably recorded (FR-107, FR-111, FR-122)
+- [X] T039 [P] [US2] Write `tests/integration/test_tenant_separation.py` — zero real-mode rows carry `acmepay`, zero simulated rows carry `hostops`, and any endpoint naming more than one tenant is refused (SC-117, FR-147)
+- [X] T040 [P] [US2] Write `tests/integration/test_redaction_egress.py` — the five-category scan over `events.payload` **and** `model_interactions.request` across 100% of rows (SC-115, FR-146)
 
 ### Implementation for User Story 2
 
-- [ ] T041 [US2] Implement the collector protocol, the observation envelope builder reusing `compute_event_id`, and per-poll liveness updates in `src/stakeroute/real/collectors/__init__.py` — no new idempotency mechanism is introduced (Principle III)
-- [ ] T042 [P] [US2] Implement `src/stakeroute/real/collectors/host_metrics.py` — psutil CPU, memory, per-mount disk and process-table deltas, 2s poll
-- [ ] T043 [P] [US2] Implement `src/stakeroute/real/collectors/app_logs.py` — the system's own log output, `absent` when the log path is unwritable
-- [ ] T044 [P] [US2] Implement `src/stakeroute/real/collectors/vcs_tests.py` — `git log`, `git status` and the most recent test-run result, 30s poll, `absent` when git is unavailable
-- [ ] T045 [P] [US2] Implement `src/stakeroute/real/collectors/container_events.py` — `docker events --since` streaming, `absent` with `absent_reason='docker daemon unreachable'` where no runtime is present (this is the common developer-laptop case and is a validation scenario, not a failure)
-- [ ] T046 [US2] Implement the source liveness state machine and startup absence detection, persisted to `observation_sources` in `src/stakeroute/real/collectors/__init__.py` — a silent source and a quiet one must never render the same (FR-141)
-- [ ] T047 [US2] Implement the volume policy in `src/stakeroute/real/collectors/__init__.py` — retain the highest-severity observation per `(source, subject)` per interval, still write everything to `events`, and record `set_aside_count` on `observation_sources` (FR-105, Principle IV)
-- [ ] T048 [US2] Implement `src/stakeroute/real/proposal.py` — build the redacted prompt from an observation window, call `ModelClient`, validate the response, persist a `proposals` row against its `interaction_id` (FR-107)
-- [ ] T049 [US2] Validate citations against `events` for the tenant and window in `src/stakeroute/real/proposal.py`, rejecting the whole proposal on any failure (FR-122)
-- [ ] T050 [US2] Wire `core/estimates.py` into `src/stakeroute/real/proposal.py` — compute impact, urgency and review cost from the cited observations and write `attribute_estimates` rows with `basis` and `estimator` (FR-108, D-016)
-- [ ] T051 [US2] Wire `core/duplicates.py` into `src/stakeroute/real/proposal.py` — merge on exact condition match, flag otherwise, so one real situation never consumes two of two review slots (FR-110)
-- [ ] T052 [US2] Promote a validated proposal to a `hypotheses` row in `src/stakeroute/real/proposal.py` with `mode='real'`, `proposal_id`, `condition_name` and `condition_params`, only after durable recording (FR-111)
-- [ ] T053 [US2] Implement `src/stakeroute/real/run_ingestor.py` — collectors and the proposal loop as coroutines in the process slot `simulator/run_simulator.py` occupies, publishing over the transport rather than opening its own write connection (D-024)
-- [ ] T054 [US2] Add `GET /api/mode` with the `mode`, `tenant` and `sources` blocks to `src/stakeroute/dashboard/main.py` per contracts/http-api.md (FR-139, FR-141)
-- [ ] T055 [US2] Extend `GET /api/queue` in `src/stakeroute/dashboard/main.py` with `mode`, per-entry `estimates` carrying `basis` and `confirmed`, `cited_observation_count`, `condition`, and `flagged_duplicates` (FR-108, FR-109, FR-110)
-- [ ] T056 [US2] Add `POST /api/estimates/{hypothesis_id}/confirm` to `src/stakeroute/dashboard/main.py` — inserts a new `attribute_estimates` row and sets `superseded_by` on the prior one; estimates are never updated in place (FR-109)
-- [ ] T057 [US2] Enforce the explicit single-`tenant` query parameter on every data endpoint in `src/stakeroute/dashboard/main.py`, refusing any request naming more than one — cross-tenant aggregation must require new code, not a missing filter (D-018, SC-117)
+- [X] T041 [US2] Implement the collector protocol, the observation envelope builder reusing `compute_event_id`, and per-poll liveness updates in `src/stakeroute/real/collectors/__init__.py` — no new idempotency mechanism is introduced (Principle III)
+- [X] T042 [P] [US2] Implement `src/stakeroute/real/collectors/host_metrics.py` — psutil CPU, memory, per-mount disk and process-table deltas, 2s poll
+- [X] T043 [P] [US2] Implement `src/stakeroute/real/collectors/app_logs.py` — the system's own log output, `absent` when the log path is unwritable
+- [X] T044 [P] [US2] Implement `src/stakeroute/real/collectors/vcs_tests.py` — `git log`, `git status` and the most recent test-run result, 30s poll, `absent` when git is unavailable
+- [X] T045 [P] [US2] Implement `src/stakeroute/real/collectors/container_events.py` — `docker events --since` streaming, `absent` with `absent_reason='docker daemon unreachable'` where no runtime is present (this is the common developer-laptop case and is a validation scenario, not a failure)
+- [X] T046 [US2] Implement the source liveness state machine and startup absence detection, persisted to `observation_sources` in `src/stakeroute/real/collectors/__init__.py` — a silent source and a quiet one must never render the same (FR-141)
+- [X] T047 [US2] Implement the volume policy in `src/stakeroute/real/collectors/__init__.py` — retain the highest-severity observation per `(source, subject)` per interval, still write everything to `events`, and record `set_aside_count` on `observation_sources` (FR-105, Principle IV)
+- [X] T048 [US2] Implement `src/stakeroute/real/proposal.py` — build the redacted prompt from an observation window, call `ModelClient`, validate the response, persist a `proposals` row against its `interaction_id` (FR-107)
+- [X] T049 [US2] Validate citations against `events` for the tenant and window in `src/stakeroute/real/proposal.py`, rejecting the whole proposal on any failure (FR-122)
+- [X] T050 [US2] Wire `core/estimates.py` into `src/stakeroute/real/proposal.py` — compute impact, urgency and review cost from the cited observations and write `attribute_estimates` rows with `basis` and `estimator` (FR-108, D-016)
+- [X] T051 [US2] Wire `core/duplicates.py` into `src/stakeroute/real/proposal.py` — merge on exact condition match, flag otherwise, so one real situation never consumes two of two review slots (FR-110)
+- [X] T052 [US2] Promote a validated proposal to a `hypotheses` row in `src/stakeroute/real/proposal.py` with `mode='real'`, `proposal_id`, `condition_name` and `condition_params`, only after durable recording (FR-111)
+- [X] T053 [US2] Implement `src/stakeroute/real/run_ingestor.py` — collectors and the proposal loop as coroutines in the process slot `simulator/run_simulator.py` occupies, publishing over the transport rather than opening its own write connection (D-024)
+- [X] T054 [US2] Add `GET /api/mode` with the `mode`, `tenant` and `sources` blocks to `src/stakeroute/dashboard/main.py` per contracts/http-api.md (FR-139, FR-141)
+- [X] T055 [US2] Extend `GET /api/queue` in `src/stakeroute/dashboard/main.py` with `mode`, per-entry `estimates` carrying `basis` and `confirmed`, `cited_observation_count`, `condition`, and `flagged_duplicates` (FR-108, FR-109, FR-110)
+- [X] T056 [US2] Add `POST /api/estimates/{hypothesis_id}/confirm` to `src/stakeroute/dashboard/main.py` — inserts a new `attribute_estimates` row and sets `superseded_by` on the prior one; estimates are never updated in place (FR-109)
+- [X] T057 [US2] Enforce the explicit single-`tenant` query parameter on every data endpoint in `src/stakeroute/dashboard/main.py`, refusing any request naming more than one — cross-tenant aggregation must require new code, not a missing filter (D-018, SC-117)
 
 **Checkpoint**: Real observations reach the queue with traceable citations and derived, basis-carrying
 estimates. Quickstart V2 and V4 pass. T017 still green.
