@@ -136,7 +136,9 @@ async def run_proposal_cycle(
         DUPLICATE_JACCARD_THRESHOLD,
         DUPLICATE_WINDOW_MS,
     )
-    merge_target = match.other_id if match is not None and match.kind == "merge" else None
+    merge_target = (
+        match.other_id if match is not None and match.kind == "merge" else None
+    )
 
     repo.insert_proposal(
         proposal_id=proposal_id,

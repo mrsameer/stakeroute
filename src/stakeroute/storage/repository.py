@@ -766,6 +766,24 @@ class Repository:
             ).fetchall()
 
     @_retrying
+    def list_settlements_for_agent(
+        self, tenant_id: str, agent_id: str
+    ) -> list[sqlite3.Row]:
+        """Every settlement produced by this agent's own forecasts —
+        ``measured_calibration`` is derived from exactly these rows and
+        nothing else (FR-117, D-022)."""
+        with self._lock:
+            return self._conn.execute(
+                """
+                SELECT s.* FROM settlements s
+                INNER JOIN forecasts f ON f.id = s.forecast_id
+                WHERE s.tenant_id = ? AND f.agent_id = ?
+                ORDER BY s.settled_at_ms
+                """,
+                (tenant_id, agent_id),
+            ).fetchall()
+
+    @_retrying
     def event_ingestion_span_ms(self, tenant_id: str) -> tuple[int, int, int] | None:
         """Return ``(count, earliest_ingested_at_ms, latest_ingested_at_ms)``
         for ``tenant_id``, or ``None`` if no events are recorded yet."""

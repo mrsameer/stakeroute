@@ -159,24 +159,24 @@ that measured calibration differs across the population and appears in no config
 
 ### Tests for User Story 1 (REQUIRED — this story is the feature's central claim) ⚠️
 
-- [ ] T058 [P] [US1] Write `tests/unit/test_evidence_bundle.py` — walk the `EvidenceBundle` dataclass fields and assert none could carry an outcome, ground-truth label or accuracy parameter, and that it is `frozen=True` (FR-113, SC-102)
-- [ ] T059 [P] [US1] Write `tests/integration/test_evidence_scope.py` — a bundle contains only in-scope sources, a rationale citing out-of-scope evidence is rejected into `rejected_forecasts`, and 100% of recorded real-mode bundles are outcome-free (FR-114, FR-116, SC-102)
-- [ ] T060 [P] [US1] Write `tests/integration/test_agents_reason.py` — probabilities differ across agents holding disjoint evidence, rationales are recorded, and **no configured accuracy constant exists anywhere under `src/stakeroute/real/`** (SC-101, FR-112, FR-117)
-- [ ] T061 [P] [US1] Write `tests/unit/test_forecast_validation.py` — out-of-range probability, stake outside `STAKE_MIN..STAKE_MAX`, and stake exceeding available credits are each rejected and recorded (FR-116)
+- [X] T058 [P] [US1] Write `tests/unit/test_evidence_bundle.py` — walk the `EvidenceBundle` dataclass fields and assert none could carry an outcome, ground-truth label or accuracy parameter, and that it is `frozen=True` (FR-113, SC-102)
+- [X] T059 [P] [US1] Write `tests/integration/test_evidence_scope.py` — a bundle contains only in-scope sources, a rationale citing out-of-scope evidence is rejected into `rejected_forecasts`, and 100% of recorded real-mode bundles are outcome-free (FR-114, FR-116, SC-102)
+- [X] T060 [P] [US1] Write `tests/integration/test_agents_reason.py` — probabilities differ across agents holding disjoint evidence, rationales are recorded, and **no configured accuracy constant exists anywhere under `src/stakeroute/real/`** (SC-101, FR-112, FR-117)
+- [X] T061 [P] [US1] Write `tests/unit/test_forecast_validation.py` — out-of-range probability, stake outside `STAKE_MIN..STAKE_MAX`, and stake exceeding available credits are each rejected and recorded (FR-116)
 
 ### Implementation for User Story 1
 
-- [ ] T062 [US1] Define `EvidenceAccessScope`, `EvidenceBundle` and `ForecastProposal` frozen dataclasses in `src/stakeroute/real/scopes.py` per data-model.md — the exclusion in FR-113 is enforced by the type, not by a convention
-- [ ] T063 [US1] Implement the sole `EvidenceBundle` constructor in `src/stakeroute/real/scopes.py`, querying only sources inside the agent's declared scope. It is the single construction path, which is what makes the claim checkable from one function signature (D-013)
-- [ ] T064 [P] [US1] Declare the four source-line evidence scopes in `src/stakeroute/config.py` — host metrics, application logs, VCS and tests, container events
-- [ ] T065 [US1] Implement `src/stakeroute/real/reasoners.py` — `async def forecast(bundle: EvidenceBundle, model: ModelClient) -> ForecastProposal | Rejection`, holding no `Repository` handle, no tenant id and no outcome (D-013)
-- [ ] T066 [US1] Persist `evidence_bundle`, `rationale` and `interaction_id` on `forecasts` rows in `src/stakeroute/storage/repository.py` — storing the bundle is the difference between an enforced exclusion and a claimed one (FR-113, FR-115)
-- [ ] T067 [US1] Route `EVIDENCE_SCOPE_VIOLATION`, `PROBABILITY_OUT_OF_RANGE`, `STAKE_OUT_OF_RANGE` and `INSUFFICIENT_CREDITS` into the existing `rejected_forecasts` table as well as `model_interactions`, in `src/stakeroute/real/reasoners.py` and `src/stakeroute/storage/repository.py` (FR-116)
-- [ ] T068 [US1] Enforce stake rationing against `available_credits` in `src/stakeroute/real/reasoners.py` so a confident agent cannot escalate further until its stakes release (US1 acceptance scenario 5)
-- [ ] T069 [US1] Derive `measured_calibration` from `settlements` on read in `src/stakeroute/metrics.py`, returning `None` together with the resolved count below `MIN_RESOLVED_FOR_CALIBRATION` (FR-117, FR-118, D-022)
-- [ ] T070 [US1] Extend `GET /api/agents` in `src/stakeroute/dashboard/main.py` with `evidence_scope`, `measured_calibration`, `resolved_forecast_count` and `insufficient`. **Add no `accuracy` field** — its absence is the requirement being met (FR-117)
-- [ ] T071 [US1] Add `GET /api/hypotheses/{id}/trace` to `src/stakeroute/dashboard/main.py` returning the proposal, the cited observations with `redactions_applied`, and the forecasts with rationale and scope (FR-140)
-- [ ] T072 [US1] Wire the agent population into `src/stakeroute/real/run_ingestor.py` as coroutines sharing the collectors' observation stream (D-024)
+- [X] T062 [US1] Define `EvidenceAccessScope`, `EvidenceBundle` and `ForecastProposal` frozen dataclasses in `src/stakeroute/real/scopes.py` per data-model.md — the exclusion in FR-113 is enforced by the type, not by a convention
+- [X] T063 [US1] Implement the sole `EvidenceBundle` constructor in `src/stakeroute/real/scopes.py`, querying only sources inside the agent's declared scope. It is the single construction path, which is what makes the claim checkable from one function signature (D-013)
+- [X] T064 [P] [US1] Declare the four source-line evidence scopes in `src/stakeroute/config.py` — host metrics, application logs, VCS and tests, container events
+- [X] T065 [US1] Implement `src/stakeroute/real/reasoners.py` — `async def forecast(bundle: EvidenceBundle, model: ModelClient) -> ForecastProposal | Rejection`, holding no `Repository` handle, no tenant id and no outcome (D-013)
+- [X] T066 [US1] Persist `evidence_bundle`, `rationale` and `interaction_id` on `forecasts` rows in `src/stakeroute/storage/repository.py` — storing the bundle is the difference between an enforced exclusion and a claimed one (FR-113, FR-115)
+- [X] T067 [US1] Route `EVIDENCE_SCOPE_VIOLATION`, `PROBABILITY_OUT_OF_RANGE`, `STAKE_OUT_OF_RANGE` and `INSUFFICIENT_CREDITS` into the existing `rejected_forecasts` table as well as `model_interactions`, in `src/stakeroute/real/reasoners.py` and `src/stakeroute/storage/repository.py` (FR-116)
+- [X] T068 [US1] Enforce stake rationing against `available_credits` in `src/stakeroute/real/reasoners.py` so a confident agent cannot escalate further until its stakes release (US1 acceptance scenario 5)
+- [X] T069 [US1] Derive `measured_calibration` from `settlements` on read in `src/stakeroute/metrics.py`, returning `None` together with the resolved count below `MIN_RESOLVED_FOR_CALIBRATION` (FR-117, FR-118, D-022)
+- [X] T070 [US1] Extend `GET /api/agents` in `src/stakeroute/dashboard/main.py` with `evidence_scope`, `measured_calibration`, `resolved_forecast_count` and `insufficient`. **Add no `accuracy` field** — its absence is the requirement being met (FR-117)
+- [X] T071 [US1] Add `GET /api/hypotheses/{id}/trace` to `src/stakeroute/dashboard/main.py` returning the proposal, the cited observations with `redactions_applied`, and the forecasts with rationale and scope (FR-140)
+- [X] T072 [US1] Wire the agent population into `src/stakeroute/real/run_ingestor.py` as coroutines sharing the collectors' observation stream (D-024)
 
 **Checkpoint**: Agents reason over disjoint evidence and can be wrong. Quickstart V3 passes. T017 still green.
 

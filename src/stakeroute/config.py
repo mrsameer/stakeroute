@@ -85,3 +85,15 @@ REPUTATION_HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000  # one week
 # Real-mode hypothesis review deadline (FR-107). Independent of feature
 # 001's scenario-generated deadlines, which stay simulator-only.
 REAL_HYPOTHESIS_DEADLINE_MS = 60 * 60 * 1000  # one hour
+
+# Evidence access scopes (D-013): one agent per source line, so the
+# independence the mechanism discounts against is a genuine property of
+# what each agent can see, not a label. Plain data here — real/scopes.py
+# wraps these into EvidenceAccessScope instances.
+EVIDENCE_SCOPES: dict[str, frozenset[str]] = {
+    "host-reasoner": frozenset({"host.metrics"}),
+    "logs-reasoner": frozenset({"app.logs"}),
+    "vcs-reasoner": frozenset({"repo.vcs_tests"}),
+    "container-reasoner": frozenset({"container.events"}),
+}
+ALL_EVIDENCE_SOURCE_IDS: frozenset[str] = frozenset().union(*EVIDENCE_SCOPES.values())

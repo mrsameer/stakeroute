@@ -27,6 +27,7 @@ from stakeroute.config import (
     DUPLICATE_JACCARD_THRESHOLD,
     DUPLICATE_WINDOW_MS,
     EPOCH_GRANT,
+    EVIDENCE_SCOPES,
     MIN_RESOLVED_FOR_CALIBRATION,
     MODEL_CEILING_CALLS_PER_HOUR,
     REAL_TENANT_ID,
@@ -39,6 +40,7 @@ from stakeroute.metrics import (
     events_per_second,
     false_escalation_rate,
     mean_brier_score,
+    measured_calibration,
     precision_at_k,
     ranking_pass_lag_ms,
     time_to_attention_ms,
@@ -570,6 +572,75 @@ def confirm_estimate(hypothesis_id: str, request: ConfirmEstimateRequest) -> dic
     }
 
 
+@app.get("/api/hypotheses/{hypothesis_id}/trace")
+def hypothesis_trace(hypothesis_id: str) -> dict:
+    """FR-140: trace a queued hypothesis to the real observations behind
+    it and the rationales that supported it — every element a recorded
+    row. Complements ``/explain``, which stays exactly as feature 001
+    defined it (the weight arithmetic)."""
+    repo = get_repo()
+    hypothesis = repo.get_hypothesis(hypothesis_id)
+    if hypothesis is None:
+        raise HTTPException(status_code=404, detail="hypothesis not found")
+
+    proposal_block = None
+    observations_block: list[dict] = []
+    proposal_id = hypothesis["proposal_id"]
+    if proposal_id:
+        proposal = repo.get_proposal(proposal_id)
+        if proposal is not None:
+            proposal_block = {
+                "proposal_id": proposal["id"],
+                "interaction_id": proposal["interaction_id"],
+                "statement": proposal["statement"],
+                "model_name": None,
+            }
+            interaction = repo.get_model_interaction(proposal["interaction_id"])
+            if interaction is not None:
+                proposal_block["model_name"] = interaction["model_name"]
+
+            for event_id in json.loads(proposal["cited_observation_ids"]):
+                event = repo.get_event(event_id)
+                if event is None:
+                    continue
+                provenance = json.loads(event["provenance"])
+                observations_block.append(
+                    {
+                        "event_id": event["event_id"],
+                        "source": event["source"],
+                        "observed_at_ms": event["observed_at_ms"],
+                        "payload": json.loads(event["payload"]),
+                        "redactions_applied": provenance.get("redactions_applied", []),
+                    }
+                )
+
+    forecasts_block = []
+    for row in repo.list_forecasts_for_hypothesis(hypothesis_id):
+        evidence_scope = sorted(EVIDENCE_SCOPES.get(row["agent_id"], frozenset()))
+        if row["evidence_bundle"]:
+            bundle = json.loads(row["evidence_bundle"])
+            evidence_scope = bundle.get("scope", {}).get("source_ids", evidence_scope)
+        forecasts_block.append(
+            {
+                "agent_id": row["agent_id"],
+                "probability": row["probability"],
+                "stake": row["stake"],
+                "rationale": row["rationale"],
+                "evidence_scope": evidence_scope,
+                "bundle_ref": row["id"],
+            }
+        )
+
+    return {
+        "hypothesis_id": hypothesis_id,
+        "mode": hypothesis["mode"],
+        "proposal": proposal_block,
+        "observations": observations_block,
+        "forecasts": forecasts_block,
+        "resolution": None,
+    }
+
+
 @app.get("/api/hypotheses/{hypothesis_id}/explain")
 def explain(hypothesis_id: str) -> dict:
     """The Principle II drill-down (FR-017). Every /api/queue field must be
@@ -654,23 +725,40 @@ async def resolve(request: ResolveRequest) -> dict:
 
 @app.get("/api/agents")
 def list_agents(request: Request) -> dict:
-    """Reputation, credits, and forecast/settlement state per agent."""
+    """Reputation, credits, and forecast/settlement state per agent.
+
+    Real-mode agents additionally carry ``evidence_scope``,
+    ``measured_calibration`` and ``resolved_forecast_count``. **There is
+    no ``accuracy`` field** — FR-117 forbids displaying a configured
+    accuracy figure in real mode; its absence here is the requirement
+    being met, not an oversight to "fix" for parity with the simulator.
+    """
     repo = get_repo()
     tenant_id = _resolve_tenant(request, DEFAULT_TENANT_ID)
+    mode = _mode_for_tenant(tenant_id)
     agents = []
     for row in repo.list_agents(tenant_id):
-        agents.append(
-            {
-                "id": row["id"],
-                "display_name": row["display_name"],
-                "reputation": row["reputation"],
-                "available_credits": row["available_credits"],
-                "staked_credits": row["staked_credits"],
-                "attested": bool(row["attested"]),
-                "last_forecast": repo.get_last_forecast_probability(row["id"]),
-                "last_settlement": repo.get_last_settlement_delta(row["id"]),
-            }
-        )
+        entry = {
+            "id": row["id"],
+            "display_name": row["display_name"],
+            "reputation": row["reputation"],
+            "available_credits": row["available_credits"],
+            "staked_credits": row["staked_credits"],
+            "attested": bool(row["attested"]),
+            "last_forecast": repo.get_last_forecast_probability(row["id"]),
+            "last_settlement": repo.get_last_settlement_delta(row["id"]),
+        }
+        if mode == "real":
+            calibration, resolved_count = measured_calibration(
+                repo, tenant_id, row["id"]
+            )
+            entry["evidence_scope"] = sorted(
+                EVIDENCE_SCOPES.get(row["id"], frozenset())
+            )
+            entry["measured_calibration"] = calibration
+            entry["resolved_forecast_count"] = resolved_count
+            entry["insufficient"] = calibration is None
+        agents.append(entry)
     return {"agents": agents}
 
 

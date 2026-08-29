@@ -36,6 +36,8 @@ import time
 from stakeroute.config import (
     COLLECTOR_POLL_INTERVAL_S,
     DB_PATH,
+    EPOCH_GRANT,
+    EVIDENCE_SCOPES,
     GEMINI_MODEL_NAME,
     GOOGLE_CLOUD_LOCATION,
     GOOGLE_CLOUD_PROJECT,
@@ -65,6 +67,8 @@ from stakeroute.real.collectors.container_events import ContainerEventsCollector
 from stakeroute.real.collectors.host_metrics import HostMetricsCollector
 from stakeroute.real.collectors.vcs_tests import VcsTestsCollector
 from stakeroute.real.proposal import run_proposal_cycle
+from stakeroute.real.reasoners import run_agent_forecast
+from stakeroute.real.scopes import EvidenceAccessScope, build_evidence_bundle
 from stakeroute.storage.repository import Repository
 
 
@@ -193,12 +197,87 @@ async def _proposal_loop(
             )
 
 
+def _ensure_agents(repo: Repository, tenant_id: str, now_ms: int) -> None:
+    """One agent per declared evidence scope (D-013) — seeded once, at
+    startup, exactly like ``worker/run_worker.py`` seeds the simulated
+    population."""
+    for agent_id in EVIDENCE_SCOPES:
+        existing = repo.get_agent(agent_id)
+        if existing is not None:
+            continue
+        repo.upsert_agent(
+            agent_id=agent_id,
+            tenant_id=tenant_id,
+            display_name=agent_id,
+            reputation=0.5,
+            available_credits=EPOCH_GRANT,
+            staked_credits=0,
+            attested=True,
+            created_at_ms=now_ms,
+        )
+    repo.commit()
+
+
+async def _agent_forecast_loop(
+    repo: Repository,
+    tenant_id: str,
+    model: ModelInteractionRecorder,
+    interval_s: float,
+    timeout_s: float,
+) -> None:
+    """One coroutine per ingestor, cycling every declared agent over every
+    open real-mode hypothesis, sharing the collectors' observation stream
+    (D-024) — each agent still only ever sees its own declared scope
+    (D-013), regardless of what else is flowing through this process.
+    """
+    while True:
+        await asyncio.sleep(interval_s)
+        now_ms = int(time.time() * 1000)
+        for hypothesis in repo.list_hypotheses(tenant_id, status="open"):
+            if hypothesis["mode"] != "real":
+                continue
+            for agent_id, source_ids in EVIDENCE_SCOPES.items():
+                if repo.get_live_forecast(hypothesis["id"], agent_id) is not None:
+                    continue  # one forecast per agent per hypothesis (MVP)
+                scope = EvidenceAccessScope(
+                    agent_id=agent_id, source_ids=source_ids, label=agent_id
+                )
+                bundle = build_evidence_bundle(
+                    repo,
+                    tenant_id,
+                    scope,
+                    hypothesis["id"],
+                    hypothesis["statement"],
+                    0,
+                    now_ms,
+                    now_ms,
+                )
+                if not bundle.observations:
+                    continue  # nothing in this agent's scope to reason over yet
+                result = await run_agent_forecast(
+                    repo,
+                    tenant_id,
+                    bundle,
+                    model,
+                    now_ms,
+                    timeout_s,
+                    hypothesis["deadline_ms"],
+                )
+                if result is not None:
+                    print(
+                        f"ingestor: {agent_id} forecast "
+                        f"{result.probability:.2f} on {hypothesis['id']}",
+                        flush=True,
+                    )
+
+
 async def run() -> None:
     tenant_id = REAL_TENANT_ID
     now_ms = int(time.time() * 1000)
     repo = Repository(DB_PATH)
     repo.ensure_tenant(tenant_id, "Host Operations", now_ms)
     repo.commit()
+    _ensure_agents(repo, tenant_id, now_ms)
 
     home_dir = os.path.expanduser("~")
     username = getpass.getuser()
@@ -244,6 +323,13 @@ async def run() -> None:
                 observation_buffer,
                 PROPOSAL_INTERVAL_S,
                 OBSERVATIONS_PER_INTERVAL_LIMIT,
+            )
+        )
+    )
+    tasks.append(
+        asyncio.create_task(
+            _agent_forecast_loop(
+                repo, tenant_id, model, PROPOSAL_INTERVAL_S, MODEL_TIMEOUT_S
             )
         )
     )

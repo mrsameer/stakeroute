@@ -9,7 +9,29 @@ prohibits displaying a fabricated or hard-coded benchmark figure, so
 
 from __future__ import annotations
 
+from stakeroute.config import MIN_RESOLVED_FOR_CALIBRATION
 from stakeroute.storage.repository import Repository
+
+
+def measured_calibration(
+    repo: Repository, tenant_id: str, agent_id: str
+) -> tuple[float | None, int]:
+    """An agent's own calibration, derived from its settlements alone —
+    never a configured constant (FR-117). ``1 - mean Brier score``, so
+    higher means better calibrated.
+
+    Returns ``(None, resolved_count)`` below
+    ``MIN_RESOLVED_FOR_CALIBRATION`` — real runs resolve far fewer
+    outcomes than a seeded scenario, so "we do not know yet" must be
+    representable rather than approximated by an early, noisy number
+    (FR-118, D-022).
+    """
+    settlements = repo.list_settlements_for_agent(tenant_id, agent_id)
+    resolved_count = len(settlements)
+    if resolved_count < MIN_RESOLVED_FOR_CALIBRATION:
+        return None, resolved_count
+    mean_brier = sum(row["brier_score"] for row in settlements) / resolved_count
+    return 1.0 - mean_brier, resolved_count
 
 
 def precision_at_k(
