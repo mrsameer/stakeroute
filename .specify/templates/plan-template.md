@@ -40,7 +40,33 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Evaluate the design against each gate. Mark PASS or FAIL with a one-line justification.
+A FAIL must be recorded in Complexity Tracking with the rejected simpler alternative —
+except Gate I, which cannot be waived.
+
+- [ ] **I. Deterministic Decision Path (NON-NEGOTIABLE)** — no model inference on the
+      `forecast → aggregation → ranking → settlement` path; identical inputs produce
+      identical outputs; ranking and settlement survive model unavailability.
+- [ ] **II. Explainability Over Sophistication** — every surfaced number traces to its
+      inputs; every attention decision records rank, priority and reason; no mechanism
+      the team cannot derive on a whiteboard.
+- [ ] **III. Exactly-Once Economics** — stable dedup identifier with a storage-level
+      uniqueness constraint; commit before acknowledge; replay yields identical balances;
+      mechanism, idempotency and Sybil tests planned.
+- [ ] **IV. Attention Is a Budgeted Resource** — review budget finite, explicit and
+      configurable; never exceeded under load or attack; suppressed items counted and
+      reported.
+- [ ] **V. State What You Have Not Proved** — the three stated limitations appear in
+      user-facing docs and demo narration; every displayed metric derives from recorded
+      run data; no hard-coded benchmark figures.
+- [ ] **VI. Demo Path First** — build order is mechanism → simulation → baseline →
+      attack → measurement → failure recovery → UI; nothing off that path is planned.
+- [ ] **Additional Constraints** — `tenant_id` on every record; seeded reproducible
+      scenarios with deterministic tie-breaks; probabilities clamped off 0 and 1; loss
+      capped at stake; simulation only; three processes unless justified below.
+- [ ] **Development Workflow** — `uv` only (never `pip`); type hints throughout with
+      `pyright` passing; `ruff format` and `ruff check` passing at 88 columns; `pytest`
+      with `anyio` for async; an adversarial reviewer assigned.
 
 ## Project Structure
 

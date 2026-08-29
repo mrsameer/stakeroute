@@ -9,7 +9,11 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Per Constitution Principle III and the Development Workflow section, tests are
+NOT optional for this project. Mechanism code (aggregation, scoring, settlement, reputation,
+independence discounting) MUST have unit tests before it is wired into the pipeline, and
+idempotency and Sybil resistance MUST have dedicated tests. Tests for non-mechanism code
+follow the usual judgement.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -64,7 +68,7 @@ description: "Task list template for feature implementation"
 Examples of foundational tasks (adjust based on your project):
 
 - [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
+- [ ] T005 [P] Implement core domain primitives shared by all stories
 - [ ] T006 [P] Setup API routing and middleware structure
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
