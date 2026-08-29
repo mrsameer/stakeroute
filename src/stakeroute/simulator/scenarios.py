@@ -75,6 +75,7 @@ def generate_world(
     rng: random.Random | None = None,
     noise_count: int = 500,
     minor_hypothesis_count: int = 3,
+    reference_ms: int = BASE_TIMESTAMP_MS,
 ) -> ScenarioWorld:
     """Generate the baseline demonstration scenario for a given seed.
 
@@ -86,6 +87,15 @@ def generate_world(
     than 2 candidates to choose from — otherwise nothing would ever be
     withheld (SC-004), and the queue screen's suppression count would
     always read zero.
+
+    ``reference_ms`` anchors every generated timestamp — signal
+    observation times, hypothesis creation and deadlines. It defaults to a
+    fixed constant for reproducibility tests, which only ever compare two
+    scenarios against each other. A live run must pass the real ingestion
+    time instead: hypothesis deadlines are computed as an offset from this
+    value, so a stale fixed default would make every hypothesis look
+    already expired against the real wall clock the moment "today" moves
+    far enough past whenever that constant was chosen.
     """
     active_rng = rng if rng is not None else random.Random(seed)
 
@@ -93,7 +103,7 @@ def generate_world(
         SignalSpec(
             source=(source := active_rng.choice(NOISE_SOURCES)),
             source_event_id=f"noise-{i}",
-            observed_at_ms=BASE_TIMESTAMP_MS + i * 37,
+            observed_at_ms=reference_ms + i * 37,
             payload={
                 "metric": f"{source}_signal",
                 "value": round(active_rng.uniform(0.0, 1.0), 3),
@@ -109,8 +119,8 @@ def generate_world(
         impact_minor_units=800_000_000,
         urgency=1.0,
         review_cost=1.0,
-        deadline_ms=BASE_TIMESTAMP_MS + 3_600_000,
-        created_at_ms=BASE_TIMESTAMP_MS,
+        deadline_ms=reference_ms + 3_600_000,
+        created_at_ms=reference_ms,
         ground_truth=1,
     )
     database_hypothesis = HypothesisSpec(
@@ -120,8 +130,8 @@ def generate_world(
         impact_minor_units=150_000_000,
         urgency=0.8,
         review_cost=1.0,
-        deadline_ms=BASE_TIMESTAMP_MS + 3_600_000,
-        created_at_ms=BASE_TIMESTAMP_MS,
+        deadline_ms=reference_ms + 3_600_000,
+        created_at_ms=reference_ms,
         ground_truth=0,
     )
     minor_hypotheses = tuple(
@@ -132,8 +142,8 @@ def generate_world(
             impact_minor_units=5_000_000,
             urgency=0.3,
             review_cost=1.0,
-            deadline_ms=BASE_TIMESTAMP_MS + 3_600_000,
-            created_at_ms=BASE_TIMESTAMP_MS,
+            deadline_ms=reference_ms + 3_600_000,
+            created_at_ms=reference_ms,
             ground_truth=0,
         )
         for i in range(minor_hypothesis_count)

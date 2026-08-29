@@ -140,14 +140,14 @@ seeded simulator. Constitution Principle VI: nothing in any user story begins un
 
 **Independent test**: Resolve the payment hypothesis true; agents beating the prior gain, agents worse than the prior lose, no loss exceeds its stake (quickstart V5, SC-008, SC-009).
 
-- [ ] T048 [US3] Implement stake locking on forecast accept — move `stake` from `available_credits` to `staked_credits` in the same transaction as the forecast write — in `src/stakeroute/storage/repository.py`
-- [ ] T049 [US3] Implement forecast validation per FR-008 — stake range, available credits, probability range — recording explicit rejections rather than dropping, in `src/stakeroute/worker/pipeline.py`
-- [ ] T050 [US3] Implement `settle_hypothesis()` — insert settlements, apply integer deltas, update reputations, release stakes, mark resolved, all in one transaction — in `src/stakeroute/worker/settlement_runner.py`
-- [ ] T051 [US3] Implement expiry handling — hypotheses past `deadline_ms` become `expired`, stakes returned in full, reputation untouched, no outcome inferred (FR-028) — in `src/stakeroute/worker/settlement_runner.py`
-- [ ] T052 [US3] Implement `POST /api/scenario/resolve` publishing to `outcomes.resolved` in `src/stakeroute/dashboard/main.py`
-- [ ] T053 [P] [US3] Implement `GET /api/agents` returning reputation, available and staked credits, last forecast, last settlement in `src/stakeroute/dashboard/main.py`
-- [ ] T054 [US3] Write `tests/integration/test_settlement_flow.py` — SC-008 direction of movement for every agent class; SC-009 loss cap asserted via the quickstart V5 SQL
-- [ ] T055 [US3] Write `tests/integration/test_expiry.py` — expired hypothesis returns stakes exactly and leaves reputation unchanged
+- [x] T048 [US3] Implement stake locking on forecast accept — move `stake` from `available_credits` to `staked_credits` in the same transaction as the forecast write — in `src/stakeroute/storage/repository.py`
+- [x] T049 [US3] Implement forecast validation per FR-008 — stake range, available credits, probability range — recording explicit rejections rather than dropping, in `src/stakeroute/worker/pipeline.py`
+- [x] T050 [US3] Implement `settle_hypothesis()` — insert settlements, apply integer deltas, update reputations, release stakes, mark resolved, all in one transaction — in `src/stakeroute/worker/settlement_runner.py`
+- [x] T051 [US3] Implement expiry handling — hypotheses past `deadline_ms` become `expired`, stakes returned in full, reputation untouched, no outcome inferred (FR-028) — in `src/stakeroute/worker/settlement_runner.py`
+- [x] T052 [US3] Implement `POST /api/scenario/resolve` publishing to `outcomes.resolved` in `src/stakeroute/dashboard/main.py`
+- [x] T053 [P] [US3] Implement `GET /api/agents` returning reputation, available and staked credits, last forecast, last settlement in `src/stakeroute/dashboard/main.py`
+- [x] T054 [US3] Write `tests/integration/test_settlement_flow.py` — SC-008 direction of movement for every agent class; SC-009 loss cap asserted via the quickstart V5 SQL
+- [x] T055 [US3] Write `tests/integration/test_expiry.py` — expired hypothesis returns stakes exactly and leaves reputation unchanged
 
 **Checkpoint**: The feedback loop closes. Reputation is now earned rather than assigned.
 

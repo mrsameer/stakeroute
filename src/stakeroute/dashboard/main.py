@@ -25,9 +25,11 @@ from stakeroute.storage.repository import Repository
 from stakeroute.transport.memory import MemoryTransport
 from stakeroute.worker.main import (
     FORECASTS_CREATED,
+    OUTCOMES_RESOLVED,
     SIGNALS_RAW,
     consume_once,
     handle_forecast_created,
+    handle_outcome_resolved,
     handle_signal,
 )
 from stakeroute.worker.pipeline import STRATEGIES, run_ranking_pass
@@ -157,7 +159,7 @@ async def run_normal(request: RunNormalRequest) -> dict:
     repo.reset_tenant(tenant_id)
     _ground_truth.clear()
 
-    world = generate_world(seed=request.seed)
+    world = generate_world(seed=request.seed, reference_ms=now)
     for hypothesis in world.hypotheses:
         repo.upsert_hypothesis(
             hypothesis_id=hypothesis.id,
@@ -320,3 +322,62 @@ def comparison() -> dict:
             for row in decisions
         ]
     return {"strategies": strategies, "ground_truth": dict(_ground_truth)}
+
+
+class ResolveRequest(BaseModel):
+    hypothesis_id: str
+    outcome: int
+
+
+@app.post("/api/scenario/resolve")
+async def resolve(request: ResolveRequest) -> dict:
+    """Publish to ``outcomes.resolved``, triggering settlement (FR-024)."""
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+    now = now_ms()
+    event_id = compute_event_id(tenant_id, "outcomes", request.hypothesis_id, now)
+    await _transport.publish(
+        OUTCOMES_RESOLVED,
+        {
+            "tenant_id": tenant_id,
+            "event_id": event_id,
+            "emitted_at_ms": now,
+            "payload": {
+                "hypothesis_id": request.hypothesis_id,
+                "outcome": request.outcome,
+                "resolved_by": "operator",
+                "resolved_at_ms": now,
+            },
+        },
+    )
+    await consume_once(
+        _transport,
+        OUTCOMES_RESOLVED,
+        "dashboard",
+        repo,
+        tenant_id,
+        handle_outcome_resolved,
+    )
+    return {"hypothesis_id": request.hypothesis_id, "outcome": request.outcome}
+
+
+@app.get("/api/agents")
+def list_agents() -> dict:
+    """Reputation, credits, and forecast/settlement state per agent."""
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+    agents = []
+    for row in repo.list_agents(tenant_id):
+        agents.append(
+            {
+                "id": row["id"],
+                "display_name": row["display_name"],
+                "reputation": row["reputation"],
+                "available_credits": row["available_credits"],
+                "staked_credits": row["staked_credits"],
+                "attested": bool(row["attested"]),
+                "last_forecast": repo.get_last_forecast_probability(row["id"]),
+                "last_settlement": repo.get_last_settlement_delta(row["id"]),
+            }
+        )
+    return {"agents": agents}

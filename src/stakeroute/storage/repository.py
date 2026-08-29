@@ -461,6 +461,26 @@ class Repository:
             (hypothesis_id,),
         ).fetchall()
 
+    def get_last_forecast_probability(self, agent_id: str) -> float | None:
+        row = self._conn.execute(
+            "SELECT probability FROM forecasts WHERE agent_id = ? "
+            "ORDER BY created_at_ms DESC LIMIT 1",
+            (agent_id,),
+        ).fetchone()
+        return row["probability"] if row else None
+
+    def get_last_settlement_delta(self, agent_id: str) -> int | None:
+        row = self._conn.execute(
+            """
+            SELECT s.credit_delta FROM settlements s
+            INNER JOIN forecasts f ON f.id = s.forecast_id
+            WHERE f.agent_id = ?
+            ORDER BY s.settled_at_ms DESC LIMIT 1
+            """,
+            (agent_id,),
+        ).fetchone()
+        return row["credit_delta"] if row else None
+
     def duplicate_settlement_count(self) -> int:
         row = self._conn.execute(
             """
@@ -503,6 +523,7 @@ class Repository:
             "settlements",
             "outcomes",
             "attention_decisions",
+            "rejected_forecasts",
             "forecasts",
             "hypotheses",
             "evidence_clusters",
@@ -512,3 +533,45 @@ class Repository:
         ):
             self._conn.execute(f"DELETE FROM {table} WHERE tenant_id = ?", (tenant_id,))
         self._conn.commit()
+
+    # -- Rejected forecasts (FR-008) -----------------------------------------
+
+    def insert_rejected_forecast(
+        self,
+        tenant_id: str,
+        hypothesis_id: str,
+        agent_id: str,
+        stake: int,
+        probability: float,
+        reason: str,
+        rejected_at_ms: int,
+    ) -> None:
+        """Record a forecast rejection explicitly rather than dropping it.
+
+        FR-008 requires a rejection to be recorded, not silently discarded
+        — the operator (and the adversarial test suite) must be able to see
+        that a submission was refused and why.
+        """
+        self._conn.execute(
+            """
+            INSERT INTO rejected_forecasts (
+                tenant_id, hypothesis_id, agent_id, stake, probability,
+                reason, rejected_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                tenant_id,
+                hypothesis_id,
+                agent_id,
+                stake,
+                probability,
+                reason,
+                rejected_at_ms,
+            ),
+        )
+
+    def list_rejected_forecasts(self, tenant_id: str) -> list[sqlite3.Row]:
+        return self._conn.execute(
+            "SELECT * FROM rejected_forecasts WHERE tenant_id = ? ORDER BY id",
+            (tenant_id,),
+        ).fetchall()

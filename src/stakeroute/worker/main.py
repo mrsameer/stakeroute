@@ -15,6 +15,7 @@ from collections.abc import Callable
 from stakeroute.config import STAKE_MAX, STAKE_MIN
 from stakeroute.core.types import clamp_probability
 from stakeroute.storage.repository import Repository
+from stakeroute.worker.settlement_runner import settle_hypothesis
 
 SIGNALS_RAW = "signals.raw"
 FORECASTS_CREATED = "forecasts.created"
@@ -80,12 +81,32 @@ def handle_forecast_created(payload: dict, repo: Repository, tenant_id: str) -> 
     stake = int(body["stake"])
     probability = clamp_probability(float(body["probability"]))
 
+    reject_at_ms = payload.get("emitted_at_ms", 0)
+
     agent = repo.get_agent(agent_id)
     if agent is None:
-        return  # rejected: unknown/unattested agent
+        repo.insert_rejected_forecast(
+            tenant_id,
+            hypothesis_id,
+            agent_id,
+            stake,
+            probability,
+            "unknown agent",
+            reject_at_ms,
+        )
+        return
 
     if not (STAKE_MIN <= stake <= STAKE_MAX):
-        return  # rejected: stake outside configured limits (FR-008)
+        repo.insert_rejected_forecast(
+            tenant_id,
+            hypothesis_id,
+            agent_id,
+            stake,
+            probability,
+            f"stake {stake} outside configured limits [{STAKE_MIN}, {STAKE_MAX}]",
+            reject_at_ms,
+        )
+        return
 
     # Validate against the *net* delta: a resubmission on the same
     # hypothesis first frees its old stake, so the true ceiling on the new
@@ -95,7 +116,16 @@ def handle_forecast_created(payload: dict, repo: Repository, tenant_id: str) -> 
     already_locked_here = existing_forecast["stake"] if existing_forecast else 0
     effective_available = agent["available_credits"] + already_locked_here
     if stake > effective_available:
-        return  # rejected: insufficient available credits (FR-008)
+        repo.insert_rejected_forecast(
+            tenant_id,
+            hypothesis_id,
+            agent_id,
+            stake,
+            probability,
+            f"stake {stake} exceeds effective available credits {effective_available}",
+            reject_at_ms,
+        )
+        return
 
     evidence_cluster_id = body["evidence_cluster_id"]
     repo.ensure_evidence_cluster(evidence_cluster_id, tenant_id, evidence_cluster_id)
@@ -122,3 +152,22 @@ def handle_forecast_created(payload: dict, repo: Repository, tenant_id: str) -> 
             staked_delta=-int(previous_stake),
         )
     repo.adjust_agent_credits(agent_id, available_delta=-stake, staked_delta=stake)
+
+
+def handle_outcome_resolved(payload: dict, repo: Repository, tenant_id: str) -> None:
+    """``outcomes.resolved``: the strictest handler in the system.
+
+    Settlement runs inside one transaction (settle_hypothesis): insert
+    settlements with ``UNIQUE(forecast_id)``, apply integer credit deltas,
+    update reputations, release stakes, mark the hypothesis resolved. A
+    redelivered resolution conflicts on the ``outcomes`` and
+    ``settlements`` uniqueness constraints and applies nothing.
+    """
+    body = payload["payload"]
+    hypothesis_id = body["hypothesis_id"]
+    outcome = int(body["outcome"])
+    resolved_by = body.get("resolved_by", "operator")
+    resolved_at_ms = payload.get("emitted_at_ms", 0)
+    settle_hypothesis(
+        repo, tenant_id, hypothesis_id, outcome, resolved_by, resolved_at_ms
+    )

@@ -18,14 +18,21 @@ def update_reputation(
     ``decay`` is the weight given to this settlement's result relative to
     the agent's prior standing — a higher value makes recent performance
     dominate faster, so historical standing decays rather than persisting
-    indefinitely (FR-027 acceptance scenario 3). A well-calibrated forecast
-    (positive ``improvement``, low ``brier_score``) pulls reputation up;
-    a poorly-calibrated one pulls it down. The floor always leaves a
-    recovery path — reputation is clamped, never permanently zeroed.
+    indefinitely (FR-027 acceptance scenario 3). Reputation moves in the
+    same direction as the credit settlement — beating the prior always
+    pulls reputation up, falling short of it always pulls reputation down
+    (SC-008) — never the reverse, even for a forecast whose absolute Brier
+    score is still mediocre. The floor always leaves a recovery path —
+    reputation is clamped, never permanently zeroed.
+
+    ``brier_score`` is accepted for forward compatibility (a future
+    version may use it to scale the *magnitude* of the update) but does
+    not currently influence the result — see D-006's note on keeping the
+    mechanism defensible: a sign that depended on two competing terms
+    would be one more thing to explain under questioning.
     """
-    # Calibration signal in [-1, 1]: reward beating the prior, penalize a
-    # high absolute Brier score even when improvement is small.
-    signal = improvement - brier_score
+    del brier_score  # not yet used; kept in the signature, see docstring
+    signal = improvement
     target = current + signal
     blended = (1 - decay) * current + decay * target
     if blended < REPUTATION_FLOOR:

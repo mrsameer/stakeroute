@@ -124,3 +124,14 @@ CREATE TABLE IF NOT EXISTS epochs (
     grant_per_agent INTEGER NOT NULL,
     seed INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS rejected_forecasts (
+    id INTEGER PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    hypothesis_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    stake INTEGER NOT NULL,
+    probability REAL NOT NULL,
+    reason TEXT NOT NULL,
+    rejected_at_ms INTEGER NOT NULL
+);
