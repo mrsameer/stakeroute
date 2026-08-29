@@ -37,12 +37,12 @@ two disagree, the constitution supersedes (Governance). Two deliberate consequen
 
 **Purpose**: Project skeleton and toolchain. No mechanism logic.
 
-- [ ] T001 Initialize uv project in `pyproject.toml` — Python 3.12; runtime deps `fastapi`, `uvicorn`, `nats-py`, `pydantic`; dev deps `pytest`, `anyio`, `ruff`, `pyright`
-- [ ] T002 [P] Configure `ruff` (line-length 88, import sorting) and `pyright` (strict) sections in `pyproject.toml`
-- [ ] T003 [P] Create package tree `src/stakeroute/{core,storage,transport,worker,dashboard,simulator}/__init__.py`
-- [ ] T004 [P] Create test tree `tests/unit/`, `tests/integration/`, and `tests/conftest.py` with an `anyio_backend` fixture
-- [ ] T005 [P] Create `data/` directory with a `.gitkeep`, and add `data/*.db` to `.gitignore` — resolves the missing DB path referenced by quickstart V4/V5
-- [ ] T006 Create `src/stakeroute/config.py` with `DB_PATH=data/stakeroute.db`, `ATTENTION_BUDGET=2`, `EPOCH_GRANT=100`, `STAKE_MIN=1`, `STAKE_MAX=50`, `REPUTATION_FLOOR=0.1`, `REPUTATION_CEIL=1.0`, `PROBABILITY_EPSILON=0.01`, `SETTLEMENT_SCALE=100`, `LLM_ENABLED=False`
+- [x] T001 Initialize uv project in `pyproject.toml` — Python 3.12; runtime deps `fastapi`, `uvicorn`, `nats-py`, `pydantic`; dev deps `pytest`, `anyio`, `ruff`, `pyright`
+- [x] T002 [P] Configure `ruff` (line-length 88, import sorting) and `pyright` (strict) sections in `pyproject.toml`
+- [x] T003 [P] Create package tree `src/stakeroute/{core,storage,transport,worker,dashboard,simulator}/__init__.py`
+- [x] T004 [P] Create test tree `tests/unit/`, `tests/integration/`, and `tests/conftest.py` with an `anyio_backend` fixture
+- [x] T005 [P] Create `data/` directory with a `.gitkeep`, and add `data/*.db` to `.gitignore` — resolves the missing DB path referenced by quickstart V4/V5
+- [x] T006 Create `src/stakeroute/config.py` with `DB_PATH=data/stakeroute.db`, `ATTENTION_BUDGET=2`, `EPOCH_GRANT=100`, `STAKE_MIN=1`, `STAKE_MAX=50`, `REPUTATION_FLOOR=0.1`, `REPUTATION_CEIL=1.0`, `PROBABILITY_EPSILON=0.01`, `SETTLEMENT_SCALE=100`, `LLM_ENABLED=False`
 
 **Checkpoint**: `uv sync` succeeds; `uv run pytest` collects zero tests without error.
 
@@ -57,38 +57,38 @@ seeded simulator. Constitution Principle VI: nothing in any user story begins un
 
 ### Core types and enforcement
 
-- [ ] T007 Define frozen dataclasses `AgentSnapshot`, `ForecastSnapshot`, `HypothesisSnapshot`, `AggregationResult`, `RankedHypothesis`, `AllocationResult`, `Settlement` and domain errors `InvalidProbability`, `InvalidStake`, `InsufficientCredits`, `EmptyCluster`, `InvalidOutcome` in `src/stakeroute/core/types.py` per contracts/core-library.md
-- [ ] T008 [P] Implement `clamp_probability(p)` to `[0.01, 0.99]` in `src/stakeroute/core/types.py`
-- [ ] T009 [P] Write `tests/unit/test_core_purity.py` — walks `src/stakeroute/core/`, asserts no module imports `stakeroute.storage`, `stakeroute.transport`, `asyncio`, `datetime`, `time`, or `random`. This is the mechanical enforcement of Principle I
+- [x] T007 Define frozen dataclasses `AgentSnapshot`, `ForecastSnapshot`, `HypothesisSnapshot`, `AggregationResult`, `RankedHypothesis`, `AllocationResult`, `Settlement` and domain errors `InvalidProbability`, `InvalidStake`, `InsufficientCredits`, `EmptyCluster`, `InvalidOutcome` in `src/stakeroute/core/types.py` per contracts/core-library.md
+- [x] T008 [P] Implement `clamp_probability(p)` to `[0.01, 0.99]` in `src/stakeroute/core/types.py`
+- [x] T009 [P] Write `tests/unit/test_core_purity.py` — walks `src/stakeroute/core/`, asserts no module imports `stakeroute.storage`, `stakeroute.transport`, `asyncio`, `datetime`, `time`, or `random`. This is the mechanical enforcement of Principle I
 
 ### Pure mechanism functions (each paired with its test)
 
-- [ ] T010 [P] Implement `independence_factor(cluster_size) -> 1/sqrt(n)` in `src/stakeroute/core/independence.py`
-- [ ] T011 [P] Write `tests/unit/test_independence.py` — full weight at size 1, monotonic decrease, raises `EmptyCluster` below 1
-- [ ] T012 Implement `influence_weight()` and `aggregate_probability()` returning per-forecast weight, independence and normalised α in `src/stakeroute/core/market.py`; returns the prior when the forecast set is empty
-- [ ] T013 Write `tests/unit/test_market.py` — sub-linear stake response, α sums to 1.0, empty set returns prior, explanation present on every result
-- [ ] T014 Implement `priority_score(probability, impact, urgency, review_cost)` and `allocate_attention(ranked, budget)` with tie-break `(-priority, -impact, hypothesis_id)` in `src/stakeroute/core/ranking.py`
-- [ ] T015 Write `tests/unit/test_ranking.py` — never returns more than `budget`; high-impact/moderate-probability outranks low-impact/high-probability; withheld count correct; ties deterministic across 100 shuffles
-- [ ] T016 [P] Implement `brier_score(probability, outcome)` in `src/stakeroute/core/scoring.py`
-- [ ] T017 [P] Write `tests/unit/test_scoring.py` — known values, raises `InvalidOutcome` for non-binary
-- [ ] T018 Implement `settle_forecast()` with integer credit delta, half-to-even rounding at `SETTLEMENT_SCALE`, loss floored at `−stake` in `src/stakeroute/core/settlement.py`
-- [ ] T019 Write `tests/unit/test_settlement.py` — the spec's worked example (prior .30, forecast .90, outcome 1 → improvement .48); loss never exceeds stake across a swept parameter grid; integer return type asserted
-- [ ] T020 [P] Implement `update_reputation()` with recency weighting and clamp to `[0.1, 1.0]` in `src/stakeroute/core/reputation.py`
-- [ ] T021 [P] Write `tests/unit/test_reputation.py` — bounds hold under adversarial input, decay makes old performance lose to recent, floor retains a recovery path
+- [x] T010 [P] Implement `independence_factor(cluster_size) -> 1/sqrt(n)` in `src/stakeroute/core/independence.py`
+- [x] T011 [P] Write `tests/unit/test_independence.py` — full weight at size 1, monotonic decrease, raises `EmptyCluster` below 1
+- [x] T012 Implement `influence_weight()` and `aggregate_probability()` returning per-forecast weight, independence and normalised α in `src/stakeroute/core/market.py`; returns the prior when the forecast set is empty
+- [x] T013 Write `tests/unit/test_market.py` — sub-linear stake response, α sums to 1.0, empty set returns prior, explanation present on every result
+- [x] T014 Implement `priority_score(probability, impact, urgency, review_cost)` and `allocate_attention(ranked, budget)` with tie-break `(-priority, -impact, hypothesis_id)` in `src/stakeroute/core/ranking.py`
+- [x] T015 Write `tests/unit/test_ranking.py` — never returns more than `budget`; high-impact/moderate-probability outranks low-impact/high-probability; withheld count correct; ties deterministic across 100 shuffles
+- [x] T016 [P] Implement `brier_score(probability, outcome)` in `src/stakeroute/core/scoring.py`
+- [x] T017 [P] Write `tests/unit/test_scoring.py` — known values, raises `InvalidOutcome` for non-binary
+- [x] T018 Implement `settle_forecast()` with integer credit delta, half-to-even rounding at `SETTLEMENT_SCALE`, loss floored at `−stake` in `src/stakeroute/core/settlement.py`
+- [x] T019 Write `tests/unit/test_settlement.py` — the spec's worked example (prior .30, forecast .90, outcome 1 → improvement .48); loss never exceeds stake across a swept parameter grid; integer return type asserted
+- [x] T020 [P] Implement `update_reputation()` with recency weighting and clamp to `[0.1, 1.0]` in `src/stakeroute/core/reputation.py`
+- [x] T021 [P] Write `tests/unit/test_reputation.py` — bounds hold under adversarial input, decay makes old performance lose to recent, floor retains a recovery path
 
 ### Storage and transport
 
-- [ ] T022 Write `src/stakeroute/storage/schema.sql` — all tables from data-model.md, `tenant_id` on every table, `UNIQUE(event_id)`, `UNIQUE(forecast_id)` on settlements, `UNIQUE(hypothesis_id, agent_id)` on forecasts, Postgres-portable DDL only
-- [ ] T023 Implement `src/stakeroute/storage/repository.py` — connection in WAL mode, schema bootstrap, transactional `insert_event()` using `ON CONFLICT DO NOTHING` returning whether the row was new
-- [ ] T024 Implement repository writes for agents, hypotheses, forecasts, attention_decisions, outcomes, settlements, epochs in `src/stakeroute/storage/repository.py`
-- [ ] T025 [P] Define the `SignalTransport` protocol (`publish`, `subscribe`, `ack`) in `src/stakeroute/transport/protocol.py`
-- [ ] T026 [P] Implement the in-process driver in `src/stakeroute/transport/memory.py` with configurable redelivery, so the test suite never needs Docker
+- [x] T022 Write `src/stakeroute/storage/schema.sql` — all tables from data-model.md, `tenant_id` on every table, `UNIQUE(event_id)`, `UNIQUE(forecast_id)` on settlements, `UNIQUE(hypothesis_id, agent_id)` on forecasts, Postgres-portable DDL only
+- [x] T023 Implement `src/stakeroute/storage/repository.py` — connection in WAL mode, schema bootstrap, transactional `insert_event()` using `ON CONFLICT DO NOTHING` returning whether the row was new
+- [x] T024 Implement repository writes for agents, hypotheses, forecasts, attention_decisions, outcomes, settlements, epochs in `src/stakeroute/storage/repository.py`
+- [x] T025 [P] Define the `SignalTransport` protocol (`publish`, `subscribe`, `ack`) in `src/stakeroute/transport/protocol.py`
+- [x] T026 [P] Implement the in-process driver in `src/stakeroute/transport/memory.py` with configurable redelivery, so the test suite never needs Docker
 
 ### Simulator
 
-- [ ] T027 [P] Implement agent accuracy profiles (payment specialist 90%, security 85%, general 70%, noisy 55%, malicious inverted, new-agent low reputation) in `src/stakeroute/simulator/agents.py`
-- [ ] T028 Implement seeded world generation in `src/stakeroute/simulator/scenarios.py` — ~500 noise signals, one true payment incident, one misleading database hypothesis, 6 honest agents; takes an explicit `random.Random(seed)`, never the module global
-- [ ] T029 Write `tests/integration/test_reproducibility.py` — same seed produces identical signals, identical rankings and identical integer balances (SC-006)
+- [x] T027 [P] Implement agent accuracy profiles (payment specialist 90%, security 85%, general 70%, noisy 55%, malicious inverted, new-agent low reputation) in `src/stakeroute/simulator/agents.py`
+- [x] T028 Implement seeded world generation in `src/stakeroute/simulator/scenarios.py` — ~500 noise signals, one true payment incident, one misleading database hypothesis, 6 honest agents; takes an explicit `random.Random(seed)`, never the module global
+- [x] T029 Write `tests/integration/test_reproducibility.py` — same seed produces identical signals, identical rankings and identical integer balances (SC-006)
 
 **Checkpoint**: `uv run pytest tests/unit -q` green with no infrastructure running. `uv run ruff check . && uv run pyright` clean. The mechanism is now correct before anything is built on it.
 

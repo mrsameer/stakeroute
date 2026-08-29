@@ -18,3 +18,8 @@ venv/
 # Local editor state
 .idea/
 .vscode/
+
+# StakeRoute runtime data
+data/*.db
+data/*.db-wal
+data/*.db-shm
