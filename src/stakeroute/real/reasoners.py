@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from stakeroute.config import ALL_EVIDENCE_SOURCE_IDS
 from stakeroute.core.types import clamp_probability
+from stakeroute.model.budget import rejection_for_state
 from stakeroute.model.protocol import ForecastDraft, Rejected, RejectionReason
 from stakeroute.model.recorder import ModelInteractionRecorder
 from stakeroute.model.validation import validate_forecast
@@ -72,6 +73,16 @@ async def forecast(
     stake rationing can be enforced (US1 acceptance scenario 5) without
     granting database access.
     """
+    # Check the model's own reported capability before building a prompt
+    # for it — a ceiling-exhausted or unconfigured model degrades this
+    # capability, reported plainly and still recorded (D-020).
+    precheck_reason = rejection_for_state(model.state().state)
+    if precheck_reason is not None:
+        rejected = model.record_precheck_rejection("forecast", precheck_reason)
+        return ForecastRejection(
+            reason=rejected.reason, interaction_id=rejected.interaction_id
+        )
+
     prompt = build_forecast_prompt(bundle)
     in_scope_sources = bundle.scope.source_ids
 

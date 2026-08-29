@@ -45,6 +45,7 @@ from stakeroute.metrics import (
     ranking_pass_lag_ms,
     time_to_attention_ms,
 )
+from stakeroute.model.budget import compute_model_state
 from stakeroute.model.protocol import (
     CAPABILITY_HYPOTHESIS_PROPOSAL,
     CAPABILITY_PROSE_EXPLANATION,
@@ -343,26 +344,24 @@ def get_mode(request: Request) -> dict:
             "usage": {"calls_this_hour": 0, "ceiling": 0},
         }
     else:
-        recent = repo.list_model_interactions(tenant_id, since_ms=now_ms() - 3_600_000)
+        recent = sorted(
+            repo.list_model_interactions(tenant_id, since_ms=now_ms() - 3_600_000),
+            key=lambda r: r["requested_at_ms"],
+        )
         calls_this_hour = len(recent)
         ceiling = MODEL_CEILING_CALLS_PER_HOUR
-        if calls_this_hour >= ceiling:
-            state, detail = (
-                "ceiling_reached",
-                f"{calls_this_hour}/{ceiling} calls this hour",
-            )
-            unavailable = [CAPABILITY_HYPOTHESIS_PROPOSAL, CAPABILITY_PROSE_EXPLANATION]
-        else:
-            last_three = sorted(recent, key=lambda r: r["requested_at_ms"])[-3:]
-            if len(last_three) == 3 and all(not r["accepted"] for r in last_three):
-                state, detail = "degraded", "3 consecutive rejections"
-                unavailable = [CAPABILITY_HYPOTHESIS_PROPOSAL]
-            else:
-                state, detail, unavailable = "ok", "", []
+        consecutive_failures = 0
+        for row in reversed(recent):
+            if row["accepted"]:
+                break
+            consecutive_failures += 1
+        state, detail, unavailable = compute_model_state(
+            calls_this_hour, ceiling, consecutive_failures
+        )
         model_block = {
             "state": state,
             "detail": detail,
-            "unavailable_capabilities": unavailable,
+            "unavailable_capabilities": list(unavailable),
             "usage": {"calls_this_hour": calls_this_hour, "ceiling": ceiling},
         }
 
@@ -385,6 +384,73 @@ def get_mode(request: Request) -> dict:
         "since_ms": since_ms,
         "model": model_block,
         "sources": sources,
+    }
+
+
+@app.get("/api/model/interactions")
+def list_model_interactions(request: Request) -> dict:
+    """FR-123: the model boundary must be inspectable, not merely
+    recorded."""
+    repo = get_repo()
+    tenant_id = _resolve_tenant(request, DEFAULT_TENANT_ID)
+    rows = repo.list_model_interactions(tenant_id)
+
+    interactions = []
+    accepted_total = 0
+    by_reason: dict[str, int] = {}
+    for row in rows:
+        accepted = bool(row["accepted"])
+        entry = {
+            "id": row["id"],
+            "purpose": row["purpose"],
+            "accepted": accepted,
+            "latency_ms": row["latency_ms"],
+            "requested_at_ms": row["requested_at_ms"],
+            "model_name": row["model_name"],
+        }
+        if row["agent_id"]:
+            entry["agent_id"] = row["agent_id"]
+        if accepted:
+            accepted_total += 1
+        else:
+            entry["rejection_reason"] = row["rejection_reason"]
+            by_reason[row["rejection_reason"]] = (
+                by_reason.get(row["rejection_reason"], 0) + 1
+            )
+        interactions.append(entry)
+
+    return {
+        "interactions": interactions,
+        "totals": {
+            "accepted": accepted_total,
+            "rejected": len(rows) - accepted_total,
+            "by_reason": by_reason,
+        },
+    }
+
+
+@app.get("/api/model/interactions/{interaction_id}")
+def get_model_interaction(interaction_id: str) -> dict:
+    """The full request/response for one interaction — both already
+    redacted, since they are stored redacted (D-014). Credentials appear
+    in neither (FR-127, SC-112)."""
+    repo = get_repo()
+    row = repo.get_model_interaction(interaction_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="interaction not found")
+    return {
+        "id": row["id"],
+        "tenant_id": row["tenant_id"],
+        "mode": row["mode"],
+        "purpose": row["purpose"],
+        "agent_id": row["agent_id"],
+        "request": row["request"],
+        "response": row["response"],
+        "latency_ms": row["latency_ms"],
+        "accepted": bool(row["accepted"]),
+        "rejection_reason": row["rejection_reason"],
+        "model_name": row["model_name"],
+        "requested_at_ms": row["requested_at_ms"],
     }
 
 

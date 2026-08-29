@@ -20,6 +20,7 @@ from stakeroute.core.estimates import (
     estimate_urgency,
 )
 from stakeroute.core.types import ObservationSnapshot
+from stakeroute.model.budget import rejection_for_state
 from stakeroute.model.protocol import ProposalDraft, Rejected, RejectionReason
 from stakeroute.model.recorder import ModelInteractionRecorder
 from stakeroute.model.validation import validate_proposal
@@ -103,6 +104,15 @@ async def run_proposal_cycle(
     """
     if not observations:
         return ProposalCycleResult(status="no_observations")
+
+    # Check the model's own reported capability before building a prompt
+    # for it — a ceiling-exhausted or unconfigured model degrades this
+    # capability, reported plainly and still recorded, rather than being
+    # attempted and failing inside the call (D-020).
+    precheck_reason = rejection_for_state(model.state().state)
+    if precheck_reason is not None:
+        rejected = model.record_precheck_rejection("proposal", precheck_reason)
+        return ProposalCycleResult(status="rejected", rejection_reason=rejected.reason)
 
     known_ids = {o.event_id for o in observations}
     ts_by_id = {o.event_id: o.observed_at_ms for o in observations}

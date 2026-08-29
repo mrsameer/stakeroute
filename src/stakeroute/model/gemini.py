@@ -18,16 +18,9 @@ from google import genai
 from stakeroute.model.budget import (
     ModelBudget,
     capability_for_purpose,
+    compute_model_state,
 )
-from stakeroute.model.protocol import (
-    CAPABILITY_HYPOTHESIS_PROPOSAL,
-    CAPABILITY_PROSE_EXPLANATION,
-    Accepted,
-    ModelStateReport,
-    Rejected,
-)
-
-_CONSECUTIVE_FAILURES_FOR_DEGRADED = 3
+from stakeroute.model.protocol import Accepted, ModelStateReport, Rejected
 
 
 class GeminiClient:
@@ -109,30 +102,13 @@ class GeminiClient:
         now_ms = int(time.time() * 1000)
         calls = self._budget.calls_this_interval(now_ms)
         ceiling = self._budget.ceiling()
-
-        if not self._budget.has_capacity(now_ms):
-            return ModelStateReport(
-                state="ceiling_reached",
-                detail=f"{calls}/{ceiling} calls this hour",
-                unavailable_capabilities=(
-                    CAPABILITY_HYPOTHESIS_PROPOSAL,
-                    CAPABILITY_PROSE_EXPLANATION,
-                ),
-                calls_this_interval=calls,
-                ceiling=ceiling,
-            )
-        if self._consecutive_failures >= _CONSECUTIVE_FAILURES_FOR_DEGRADED:
-            return ModelStateReport(
-                state="degraded",
-                detail=f"{self._consecutive_failures} consecutive timeouts/failures",
-                unavailable_capabilities=(CAPABILITY_HYPOTHESIS_PROPOSAL,),
-                calls_this_interval=calls,
-                ceiling=ceiling,
-            )
+        state, detail, unavailable = compute_model_state(
+            calls, ceiling, self._consecutive_failures
+        )
         return ModelStateReport(
-            state="ok",
-            detail="",
-            unavailable_capabilities=(),
+            state=state,
+            detail=detail,
+            unavailable_capabilities=unavailable,
             calls_this_interval=calls,
             ceiling=ceiling,
         )

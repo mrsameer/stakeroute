@@ -120,8 +120,7 @@ async def test_rationale_citing_out_of_scope_evidence_is_rejected(real_repo) -> 
                 "probability": 0.8,
                 "stake": 10,
                 "rationale": (
-                    "combined with app.logs showing repeated failures, "
-                    "this is severe"
+                    "combined with app.logs showing repeated failures, this is severe"
                 ),
             }
         ),

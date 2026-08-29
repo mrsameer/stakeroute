@@ -11,6 +11,7 @@ condition, range, scope and credit failures, not just transport-level ones.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import itertools
 import json
@@ -81,7 +82,22 @@ class ModelInteractionRecorder:
         """
         requested_at_ms = int(time.time() * 1000)
         call_seq = next(self._call_seq)
-        raw_result = await self._client.complete(purpose, prompt, timeout_s)
+        started = time.monotonic()
+        try:
+            # A hard backstop at the recording boundary, not just inside
+            # each ModelClient implementation (FR-121): "no decision-path
+            # operation waits on a model response — ever, not even for
+            # the timeout" must hold even if some future client forgets
+            # to enforce its own timeout internally.
+            raw_result = await asyncio.wait_for(
+                self._client.complete(purpose, prompt, timeout_s), timeout=timeout_s
+            )
+        except TimeoutError:
+            raw_result = Rejected(
+                reason="TIMEOUT",
+                interaction_id="",
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
         interaction_id = compute_interaction_id(
             self._tenant_id, purpose, prompt, requested_at_ms, call_seq
         )
@@ -166,3 +182,37 @@ class ModelInteractionRecorder:
 
     def state(self):
         return self._client.state()
+
+    def record_precheck_rejection(
+        self, purpose: str, reason: RejectionReason
+    ) -> Rejected:
+        """Record a rejection decided *before* any prompt was built —
+        typically ``CEILING_REACHED`` or ``MODEL_DISABLED``, checked via
+        ``model/budget.py::rejection_for_state`` ahead of an expensive
+        call that would only fail anyway (D-020).
+
+        Still exactly one ``model_interactions`` row: "every rejection
+        reason produces a row with ``accepted = 0``" (FR-122) holds even
+        when the call never reaches the wrapped client at all.
+        """
+        requested_at_ms = int(time.time() * 1000)
+        call_seq = next(self._call_seq)
+        interaction_id = compute_interaction_id(
+            self._tenant_id, purpose, "", requested_at_ms, call_seq
+        )
+        self._repo.insert_model_interaction(
+            interaction_id=interaction_id,
+            tenant_id=self._tenant_id,
+            mode=self._mode,
+            purpose=purpose,
+            agent_id=None,
+            request="",
+            response=None,
+            latency_ms=0,
+            accepted=False,
+            rejection_reason=reason,
+            model_name=self._model_name,
+            requested_at_ms=requested_at_ms,
+        )
+        self._repo.commit()
+        return Rejected(reason=reason, interaction_id=interaction_id, latency_ms=0)

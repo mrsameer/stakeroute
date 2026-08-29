@@ -11,6 +11,8 @@ from __future__ import annotations
 from stakeroute.model.protocol import (
     CAPABILITY_HYPOTHESIS_PROPOSAL,
     CAPABILITY_PROSE_EXPLANATION,
+    ModelState,
+    RejectionReason,
 )
 
 _PURPOSE_CAPABILITY = {
@@ -18,6 +20,8 @@ _PURPOSE_CAPABILITY = {
     "forecast": CAPABILITY_HYPOTHESIS_PROPOSAL,
     "explanation": CAPABILITY_PROSE_EXPLANATION,
 }
+
+CONSECUTIVE_FAILURES_FOR_DEGRADED = 3
 
 
 def capability_for_purpose(purpose: str) -> str:
@@ -28,6 +32,49 @@ def capability_for_purpose(purpose: str) -> str:
         return _PURPOSE_CAPABILITY[purpose]
     except KeyError:
         raise ValueError(f"unknown model purpose: {purpose!r}") from None
+
+
+def compute_model_state(
+    calls_this_interval: int, ceiling: int, consecutive_failures: int
+) -> tuple[ModelState, str, tuple[str, ...]]:
+    """The single ``ModelState`` transition rule (FR-124), shared by every
+    caller that needs to report it — ``GeminiClient.state()`` (in-process,
+    live) and the dashboard's ``GET /api/mode`` (a separate process,
+    derived from recorded ``model_interactions`` rows) must never
+    disagree about what "ceiling reached" or "degraded" means.
+
+    The returned ``unavailable_capabilities`` only ever names
+    ``hypothesis_proposal`` and/or ``prose_explanation`` — ranking and
+    settlement are never on it, because they never call the model.
+    """
+    if calls_this_interval >= ceiling:
+        return (
+            "ceiling_reached",
+            f"{calls_this_interval}/{ceiling} calls this hour",
+            (CAPABILITY_HYPOTHESIS_PROPOSAL, CAPABILITY_PROSE_EXPLANATION),
+        )
+    if consecutive_failures >= CONSECUTIVE_FAILURES_FOR_DEGRADED:
+        return (
+            "degraded",
+            f"{consecutive_failures} consecutive timeouts/failures",
+            (CAPABILITY_HYPOTHESIS_PROPOSAL,),
+        )
+    return "ok", "", ()
+
+
+def rejection_for_state(state: ModelState) -> RejectionReason | None:
+    """Map a capability-degraded state directly to the rejection a caller
+    should report *before* even attempting a call (D-020) — this is what
+    lets ceiling exhaustion degrade capability and report consumption
+    instead of failing opaquely, wired into ``real/proposal.py`` and
+    ``real/reasoners.py`` ahead of every prompt they would otherwise
+    build for nothing.
+    """
+    if state == "ceiling_reached":
+        return "CEILING_REACHED"
+    if state in ("unconfigured", "disabled"):
+        return "MODEL_DISABLED"
+    return None
 
 
 class ModelBudget:

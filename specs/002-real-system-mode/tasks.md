@@ -193,19 +193,19 @@ the lost capability (quickstart V1 and V5).
 
 ### Tests for User Story 3 (REQUIRED — Principle I is non-negotiable and untested until now) ⚠️
 
-- [ ] T073 [P] [US3] Write `tests/integration/test_model_absent.py` — a full ranking pass with a client that raises on any call, settlement with the model unreachable, and rankings identical with and without the model (FR-120, SC-104)
-- [ ] T074 [P] [US3] Write `tests/integration/test_slow_model.py` — pass duration unaffected by a client sleeping past the timeout. This asserts the *architecture*, not the tuning: the worker holds no client to wait on (FR-121, SC-105)
-- [ ] T075 [P] [US3] Write `tests/integration/test_malformed_responses.py` — each rejection reason produces a `model_interactions` row with `accepted = 0` and **zero** downstream forecasts, hypotheses or economic effects (FR-122, SC-106)
-- [ ] T076 [P] [US3] Write `tests/integration/test_starts_with_no_model.py` — with `STAKEROUTE_MODEL=none`, ingestion, ranking, settlement and the queue all work and `/api/mode` reports `unconfigured` with the unavailable capabilities named (FR-126, SC-113)
-- [ ] T077 [US3] Write `tests/unit/test_decision_path_model_free.py` — AST-walk `src/stakeroute/worker/` and assert no module imports `stakeroute.model`, so `run_ranking_pass` and `settle_hypothesis` cannot hold a client reference (FR-119, FR-128)
+- [X] T073 [P] [US3] Write `tests/integration/test_model_absent.py` — a full ranking pass with a client that raises on any call, settlement with the model unreachable, and rankings identical with and without the model (FR-120, SC-104)
+- [X] T074 [P] [US3] Write `tests/integration/test_slow_model.py` — pass duration unaffected by a client sleeping past the timeout. This asserts the *architecture*, not the tuning: the worker holds no client to wait on (FR-121, SC-105)
+- [X] T075 [P] [US3] Write `tests/integration/test_malformed_responses.py` — each rejection reason produces a `model_interactions` row with `accepted = 0` and **zero** downstream forecasts, hypotheses or economic effects (FR-122, SC-106)
+- [X] T076 [P] [US3] Write `tests/integration/test_starts_with_no_model.py` — with `STAKEROUTE_MODEL=none`, ingestion, ranking, settlement and the queue all work and `/api/mode` reports `unconfigured` with the unavailable capabilities named (FR-126, SC-113)
+- [X] T077 [US3] Write `tests/unit/test_decision_path_model_free.py` — AST-walk `src/stakeroute/worker/` and assert no module imports `stakeroute.model`, so `run_ranking_pass` and `settle_hypothesis` cannot hold a client reference (FR-119, FR-128)
 
 ### Implementation for User Story 3
 
-- [ ] T078 [US3] Enforce `MODEL_TIMEOUT_S` per request in `src/stakeroute/model/gemini.py`, abandoning within the limit and recording a `TIMEOUT` or `TRANSPORT_FAILURE` row with `response = NULL` (FR-121, FR-123)
-- [ ] T079 [US3] Implement the `ModelState` transitions (`ok | degraded | ceiling_reached | disabled | unconfigured`) with `unavailable_capabilities` in `src/stakeroute/model/protocol.py` and `src/stakeroute/model/budget.py` — the list contains only `hypothesis_proposal` and `prose_explanation`, never ranking or settlement (FR-124)
-- [ ] T080 [US3] Add the `model` block to `GET /api/mode` in `src/stakeroute/dashboard/main.py`, naming what is consequently unavailable rather than leaving it to be inferred from an absence, and reporting usage against the ceiling (FR-124, FR-125)
-- [ ] T081 [US3] Add `GET /api/model/interactions` and `GET /api/model/interactions/{id}` to `src/stakeroute/dashboard/main.py` with accepted/rejected totals by reason — the boundary must be inspectable, not merely recorded (FR-123)
-- [ ] T082 [US3] Wire `model/budget.py` into `src/stakeroute/real/proposal.py` and `src/stakeroute/real/reasoners.py` so ceiling exhaustion degrades capability and reports consumption instead of failing opaquely (FR-125, D-020)
+- [X] T078 [US3] Enforce `MODEL_TIMEOUT_S` per request in `src/stakeroute/model/gemini.py`, abandoning within the limit and recording a `TIMEOUT` or `TRANSPORT_FAILURE` row with `response = NULL` (FR-121, FR-123)
+- [X] T079 [US3] Implement the `ModelState` transitions (`ok | degraded | ceiling_reached | disabled | unconfigured`) with `unavailable_capabilities` in `src/stakeroute/model/protocol.py` and `src/stakeroute/model/budget.py` — the list contains only `hypothesis_proposal` and `prose_explanation`, never ranking or settlement (FR-124)
+- [X] T080 [US3] Add the `model` block to `GET /api/mode` in `src/stakeroute/dashboard/main.py`, naming what is consequently unavailable rather than leaving it to be inferred from an absence, and reporting usage against the ceiling (FR-124, FR-125)
+- [X] T081 [US3] Add `GET /api/model/interactions` and `GET /api/model/interactions/{id}` to `src/stakeroute/dashboard/main.py` with accepted/rejected totals by reason — the boundary must be inspectable, not merely recorded (FR-123)
+- [X] T082 [US3] Wire `model/budget.py` into `src/stakeroute/real/proposal.py` and `src/stakeroute/real/reasoners.py` so ceiling exhaustion degrades capability and reports consumption instead of failing opaquely (FR-125, D-020)
 
 **Checkpoint**: The system runs with no model at all, and runs identically with a broken one. Quickstart
 V1 and V5 pass. This is the constitutional obligation the v1.1.0 amendment was granted against.
