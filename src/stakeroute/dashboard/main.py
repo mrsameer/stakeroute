@@ -19,7 +19,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from stakeroute.config import ATTENTION_BUDGET, DB_PATH, DEFAULT_TENANT_ID, EPOCH_GRANT
+from stakeroute.analysis.cost_of_attack import NoRankingRecorded, build_report
+from stakeroute.config import (
+    ATTENTION_BUDGET,
+    DB_PATH,
+    DEFAULT_TENANT_ID,
+    EPOCH_GRANT,
+    STAKE_MAX,
+)
 from stakeroute.core.types import compute_event_id
 from stakeroute.metrics import (
     events_per_second,
@@ -459,6 +466,31 @@ def metrics() -> dict:
         },
         "run_id": _run_id,
     }
+
+
+@app.get("/api/cost_of_attack")
+def cost_of_attack(
+    target: str | None = None,
+    stake_per_identity: int = STAKE_MAX,
+    shared_evidence_cluster: bool = False,
+) -> dict:
+    """What it would cost to buy rank 1, under each strategy (FR-023).
+
+    Derived from the recorded ranking pass, not simulated: every input is
+    a number the last pass already wrote to the ledger. This endpoint
+    reads; it never ranks, ingests, or settles.
+    """
+    repo = get_repo()
+    try:
+        return build_report(
+            repo,
+            DEFAULT_TENANT_ID,
+            target_hypothesis_id=target,
+            stake_per_identity=stake_per_identity,
+            shared_evidence_cluster=shared_evidence_cluster,
+        )
+    except NoRankingRecorded as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.websocket("/api/live")

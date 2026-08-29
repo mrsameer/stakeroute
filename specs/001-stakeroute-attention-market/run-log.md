@@ -237,11 +237,62 @@ recovery — took **~45 seconds** end to end. A presenter narrating all four sce
 fits inside the 5-minute cap; the bottleneck is narration and the deliberate V4 pause, not
 computation.
 
+## Cost of attack (post-hoc economic analysis)
+
+Added after the 91-task build, priced against the recorded seed-42 baseline run. Every input
+is a number the ranking pass already wrote to the ledger — honest influence weight, aggregate
+probability, vote tally, hypothesis parameters — so this reads the run rather than re-simulating
+it.
+
+```
+COST OF ATTACK — what it takes to buy rank 1
+
+  defender : payment_gateway_failure (64.8%)
+  target   : database_saturation (31.8%, 6 honest forecasts, weight 13.34)
+
+  strategy                     identities  credits   lost  verdict
+  -------------------------------------------------------  ------------------------
+  highest confidence                    1        0      0  free — identities only
+  majority vote                        25        0      0  free — identities only
+  StakeRoute (as ranked)                —        —      —  not purchasable
+  StakeRoute (market only)             19      950    836  950 credits at risk
+
+  identities needed, by reputation the attacker already holds:
+    rep 0.10   19  ███████████████████
+    rep 0.25    8  ████████
+    rep 0.50    4  ████
+    rep 0.75    3  ███
+    rep 1.00    2  ██
+
+  New identities start at the reputation floor (0.1), so that is what a Sybil flood gets. Each attacking identity is assumed to assert the probability ceiling and to cite its own distinct evidence group unless stated otherwise — the cheapest attack available, not the most convenient one to defend against.
+```
+
+**Reading it honestly.** The "as ranked" row is *not purchasable* mainly because the false
+hypothesis concerns a lower-impact subsystem, and the allocator weights impact and urgency. That
+is a policy defence any strategy could adopt, so claiming it as evidence for the market would be
+overstating the result. The "market only" row removes that advantage — pricing the attack against
+a target of equal impact — and is the defensible claim: 19 floor-reputation identities, 950
+credits committed, 836 destroyed at settlement, versus 25 identities and zero capital to flip
+majority vote.
+
+**Verified against the pipeline, not the algebra.** The closed form predicts 25 identities to flip
+majority vote. `tests/integration/test_cost_of_attack.py` injects exactly 25 Sybils through the
+real ingestion path and asserts rank 1 flips, then injects 24 into a separate world and asserts it
+does not. The unit suite does the same for StakeRoute's own aggregation: it builds the prescribed
+Sybil population, runs it through `aggregate_probability`, and checks both that the count suffices
+and that one fewer does not.
+
+**What it does not cover.** A single epoch only. An adversary who forecasts honestly to earn
+reputation and then spends it is not defended against; the frontier table is that attack's price
+list — 2 identities at ceiling reputation versus 19 at the floor.
+
+---
+
 ## Final gate
 
 ```
 uv run ruff format .   -> no changes
 uv run ruff check .    -> All checks passed!
 uv run pyright         -> 0 errors, 0 warnings, 0 informations
-uv run pytest -q       -> 53 passed
+uv run pytest -q       -> 81 passed
 ```

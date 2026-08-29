@@ -131,6 +131,19 @@
   .strategy-col .row.false { color: var(--bad); }
 
   .not-measured { color: var(--muted); font-style: italic; }
+
+  .attack-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .attack-table tr.defended td { color: var(--good); }
+  .attack-table tr.cheap td.num { color: var(--bad); }
+  .price-tag { font-weight: 600; }
+  .price-tag.free { color: var(--bad); }
+  .price-tag.safe { color: var(--good); }
+  .frontier { margin-top: 12px; }
+  .frontier-row { display: grid; grid-template-columns: 64px 1fr 92px; gap: 8px; align-items: center; font-size: 12px; padding: 3px 0; }
+  .frontier-bar { background: #0c0e13; border: 1px solid var(--panel-border); border-radius: 3px; height: 12px; overflow: hidden; }
+  .frontier-fill { background: var(--accent); height: 100%; }
+  .caveat { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.5; }
+  .caveat b { color: var(--warn); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -173,6 +186,19 @@
     <div class="panel">
       <h2>Strategy Comparison</h2>
       <div class="strategy-cols" id="comparison-cols"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Cost of Attack</h2>
+      <div class="budget-row" id="attack-header"></div>
+      <table class="attack-table">
+        <thead>
+          <tr><th>Strategy</th><th>Identities</th><th>Credits staked</th><th>Lost at settlement</th><th>Price of rank 1</th></tr>
+        </thead>
+        <tbody id="attack-body"></tbody>
+      </table>
+      <div class="frontier" id="attack-frontier"></div>
+      <p class="caveat" id="attack-caveat"></p>
     </div>
   </div>
 
@@ -294,6 +320,68 @@ async function refreshAgents() {
   $("agents-body").innerHTML = rows || `<tr><td colspan="6" class="sub">No agents yet.</td></tr>`;
 }
 
+// Two defences are active at once, and the honest presentation separates
+// them: the headline row includes the allocator's impact weighting, which
+// is policy any strategy could adopt. The economics-only row is what the
+// market itself is worth, and it is the weaker — therefore more defensible
+// — claim.
+function attackRow(cost, label, isStakeRoute) {
+  const infeasible = !cost.feasible;
+  const price = infeasible
+    ? `<span class="price-tag safe">not purchasable</span>`
+    : (cost.credits === 0
+        ? `<span class="price-tag free">${cost.identities} ${cost.identities === 1 ? "identity" : "identities"}, no capital</span>`
+        : `<span class="price-tag">${cost.credits} credits at risk</span>`);
+  const cls = infeasible ? "defended" : (cost.credits === 0 ? "cheap" : "");
+  return `<tr class="${cls}">
+    <td>${label}</td>
+    <td class="num">${infeasible ? "—" : cost.identities}</td>
+    <td class="num">${infeasible ? "—" : cost.credits}</td>
+    <td class="num">${infeasible ? "—" : cost.settlement_loss_credits}</td>
+    <td>${price}</td>
+  </tr>`;
+}
+
+async function refreshAttack() {
+  const res = await fetch("/api/cost_of_attack");
+  if (!res.ok) {
+    $("attack-header").innerHTML = `<span class="sub">Run a scenario to price an attack.</span>`;
+    $("attack-body").innerHTML = "";
+    $("attack-frontier").innerHTML = "";
+    $("attack-caveat").textContent = "";
+    return;
+  }
+  const r = await res.json();
+
+  $("attack-header").innerHTML = `
+    <span>Target: <b>${r.target.statement}</b> at ${fmtPct(r.target.probability)}</span>
+    <span>Defender: <b>${r.defender.statement}</b> at ${fmtPct(r.defender.probability)}</span>`;
+
+  $("attack-body").innerHTML = [
+    attackRow(r.strategies.highest_confidence, "Highest confidence", false),
+    attackRow(r.strategies.majority_vote, "Majority vote", false),
+    attackRow(r.strategies.stakeroute, "StakeRoute (as ranked)", true),
+    attackRow(r.economic_defence_only, "StakeRoute (market only)", true),
+  ].join("");
+
+  const feasible = r.frontier.filter((p) => p.feasible);
+  const worst = Math.max(...feasible.map((p) => p.identities), 1);
+  $("attack-frontier").innerHTML =
+    `<div class="sub" style="margin-bottom:6px;">Identities needed vs. reputation the attacker already holds</div>` +
+    feasible.map((p) => `
+      <div class="frontier-row">
+        <span class="sub">rep ${p.reputation_per_identity.toFixed(2)}</span>
+        <div class="frontier-bar"><div class="frontier-fill" style="width:${(p.identities / worst * 100).toFixed(1)}%"></div></div>
+        <span class="num">${p.identities} × ${p.stake_per_identity} cr</span>
+      </div>`).join("");
+
+  $("attack-caveat").innerHTML =
+    `<b>Read this honestly:</b> the "as ranked" row also benefits from impact weighting, which is policy, not economics. ` +
+    `The "market only" row removes that advantage and prices the mechanism alone — attackers are assumed to hold floor ` +
+    `reputation (${r.assumptions.reputation_per_identity}), assert ${fmtPct(r.assumptions.adversary_probability)}, and cite ` +
+    `distinct evidence groups, which is the cheapest attack available rather than the most convenient to defend against.`;
+}
+
 async function refreshMetrics() {
   const m = await fetchJSON("/api/metrics");
   $("metrics-strip").innerHTML = [
@@ -307,7 +395,7 @@ async function refreshMetrics() {
 }
 
 async function refreshAll() {
-  await Promise.all([refreshQueue(), refreshComparison(), refreshAgents(), refreshMetrics()]);
+  await Promise.all([refreshQueue(), refreshComparison(), refreshAttack(), refreshAgents(), refreshMetrics()]);
 }
 
 async function postJSON(url, body) {

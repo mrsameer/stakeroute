@@ -92,9 +92,14 @@ aggregation, ranking, or settlement.
 operator sees exactly two hypotheses and the real payment incident is ranked first. Open its
 explanation to show the probabilities, stakes, evidence groups, and weights behind the decision.
 
-**2:15–3:15 — The attack.** Inject 50 Sybil agents supporting the false database diagnosis.
-Majority vote promotes it to first place; StakeRoute retains the genuine incident because new
-identities have low earned influence and duplicate evidence is discounted.
+**2:15–3:15 — The attack, and its price.** Inject 50 Sybil agents supporting the false
+database diagnosis. Majority vote promotes it to first place; StakeRoute retains the
+genuine incident because new identities have low earned influence and duplicate evidence is
+discounted. Then open the Cost of Attack panel, which answers the question the demo itself
+cannot: flipping majority vote costs 25 identities and no capital at all, while flipping the
+market costs 19 identities that must stake 950 credits and forfeit 836 of them at
+settlement — and the panel separates the market's contribution from the impact weighting
+rather than claiming credit for both.
 
 **3:15–4:00 — The feedback loop.** Resolve the outcome. Agents that improved on the prior gain
 credits and reputation. Confidently wrong agents lose no more than they staked, so influence is
@@ -108,7 +113,9 @@ ensure there are no lost signals and no duplicate settlements.
 be enterprise-attested. Evidence independence is a heuristic and can miss hidden correlation.
 SQLite is a deliberate single-writer demo choice; production multi-worker scale-out requires a
 database such as Postgres. The settlement is scoring-rule-derived, not claimed to be formally
-strategy-proof.
+strategy-proof. And the cost-of-attack figures price a single epoch: an adversary who earns
+reputation honestly and then spends it is not defended against — the frontier curve is that
+attack's price list, not a refutation of it.
 
 > **AI can propose hypotheses, but it does not get to spend human attention for free.**
 
@@ -118,7 +125,7 @@ strategy-proof.
 
 ```bash
 uv sync
-uv run pytest -q                                    # 53 tests, no broker required
+uv run pytest -q                                    # 81 tests, no broker required
 uv run ruff format . && uv run ruff check . && uv run pyright
 ```
 
@@ -162,6 +169,67 @@ for the full transcript. Highlights:
 - **Metrics**: every ranking-quality metric reads `null` — not a placeholder zero — until ground
   truth exists, then populates from real recorded rows.
 
+## What it costs to attack it
+
+A mechanism that resists one scripted attack has shown very little. The question a
+tokenomics review actually asks is the *price*: what would an adversary have to spend to
+buy the operator's top slot? Because aggregation and ranking are closed-form, so is the
+answer — no search, no simulation:
+
+1. Ranking is `p x impact x urgency / review_cost`, so inverting it gives the aggregate
+   probability a target must reach to tie the incumbent.
+2. Aggregation is a weighted mean, so inverting it gives the adversarial influence weight
+   needed to drag the target there.
+3. Influence weight is `reputation x sqrt(stake) x independence`, so that weight converts
+   into an identity count and a credit bill.
+
+`stakeroute.core.attack` implements those three inversions as pure functions;
+`stakeroute.analysis.cost_of_attack` feeds them the numbers the last ranking pass actually
+recorded. Priced against the seed-42 baseline run:
+
+```bash
+uv run python -m stakeroute.analysis.cost_of_attack
+```
+
+| Strategy | Identities | Credits staked | Lost at settlement | Price of rank 1 |
+|---|---|---|---|---|
+| Highest confidence | 1 | 0 | 0 | one unbacked assertion |
+| Majority vote | 25 | 0 | 0 | identities only, no capital |
+| StakeRoute (as ranked) | — | — | — | not purchasable at any price |
+| StakeRoute (market only) | 19 | 950 | 836 | 950 credits committed, 836 destroyed |
+
+The last two rows are the honest part. **Two different defences are active at once, and
+collapsing them into one number would overstate the mechanism.** The "as ranked" row
+includes the attention allocator's impact weighting — the false hypothesis concerns a
+lower-impact subsystem, so no probability whatsoever promotes it. That is a *policy*
+defence, and a naive strategy would enjoy it too if anyone bothered to apply it. The
+"market only" row strips that advantage away and prices the market alone against a target
+of equal impact. It is the weaker claim, and it is the one worth defending.
+
+Even stripped back, the asymmetry is the whole thesis. Beating majority vote costs 25
+anonymous identities and **nothing else** — no capital, no history, and the attack is
+repeatable forever at the same price. Beating the market costs 19 identities that must
+also commit 950 credits, of which settlement destroys 836 when the hypothesis they
+promoted resolves false. The attack is not merely expensive; it is loss-making, and it
+prices in *before* the reputation those identities need.
+
+Reputation is what the curve actually measures:
+
+| Reputation held per identity | 0.10 (floor) | 0.25 | 0.50 | 0.75 | 1.00 (ceiling) |
+|---|---|---|---|---|---|
+| Identities required | 19 | 8 | 4 | 3 | 2 |
+
+An attacker starting from scratch gets the floor — new identities are worth 0.1 and
+nothing else is purchasable. Getting to the top of that curve requires a sustained record
+of well-calibrated forecasts, which is the only thing the system sells and the one input a
+Sybil flood cannot mint. Every figure above is a live computation over the recorded run,
+exposed at `GET /api/cost_of_attack` and shown in the dashboard's Cost of Attack panel.
+
+The prediction is falsifiable, and is falsified in CI rather than asserted:
+`tests/integration/test_cost_of_attack.py` takes the identity count the report predicts for
+majority vote, injects exactly that many Sybils through the real ingestion path, and
+asserts rank 1 flips — then asserts that one fewer leaves it standing.
+
 ## What this is not
 
 This is a hackathon prototype, and the specification is explicit about what has **not** been proved:
@@ -169,6 +237,14 @@ This is a hackathon prototype, and the specification is explicit about what has 
 - The capped stake-weighted settlement is derived from a proper scoring rule, but the full wagering mechanism is **not** claimed to be strategy-proof.
 - Sybil resistance is bounded by an **attested-identity** trust model. This is not a permissionless-safe design.
 - The evidence-independence discount is a **heuristic** and can miss hidden correlation.
+  The cost-of-attack analysis makes its exact limit explicit rather than glossing it: an
+  adversary reusing one evidence group pays a *quadratic* identity cost, but one willing to
+  manufacture genuinely distinct evidence groups pays only the linear price. The discount
+  stops lazy correlated flooding; reputation, not the discount, is what makes the linear
+  price high.
+- The cost-of-attack figures price a **single-epoch** attack against the recorded state.
+  They do not model an adversary who farms reputation honestly over many epochs and then
+  spends it — that attack is real, and the frontier table above is precisely its cost curve.
 - SQLite serialises writers. The durable bus (NATS JetStream) already supports multiple workers
   sharing a consumer, and the ledger's uniqueness constraints already make that safe — but the
   demo store is SQLite, so the demo runs a single writer process by design. Moving to Postgres is
