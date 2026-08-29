@@ -223,19 +223,19 @@ in the system before it (quickstart V9, step 5).
 
 ### Tests for User Story 4 (REQUIRED — settlement is economic; Principle III) ⚠️
 
-- [ ] T083 [P] [US4] Write `tests/unit/test_conditions.py` — each registry entry is a pure predicate over a freshly sampled host state, never over recorded observations (FR-148, D-017)
-- [ ] T084 [P] [US4] Write `tests/integration/test_automatic_resolution.py` — `check_name`, `check_params`, `check_result` verbatim and `checked_at_ms` are all recorded, so the outcome is auditable independently of any operator judgement (FR-148, FR-133)
-- [ ] T085 [P] [US4] Write `tests/integration/test_resolution_idempotency.py` — a redelivered outcome inserts zero rows, produces exactly one settlement effect, and leaves balances unchanged (FR-135, Principle III)
-- [ ] T086 [P] [US4] Write `tests/integration/test_resolution_corrections.py` — a correction is a new `resolution_seq` and never an overwrite (FR-136), and an outcome arriving after expiry is recorded with `settled = 0` and a reason, without re-settling returned stakes (FR-138)
+- [X] T083 [P] [US4] Write `tests/unit/test_conditions.py` — each registry entry is a pure predicate over a freshly sampled host state, never over recorded observations (FR-148, D-017)
+- [X] T084 [P] [US4] Write `tests/integration/test_automatic_resolution.py` — `check_name`, `check_params`, `check_result` verbatim and `checked_at_ms` are all recorded, so the outcome is auditable independently of any operator judgement (FR-148, FR-133)
+- [X] T085 [P] [US4] Write `tests/integration/test_resolution_idempotency.py` — a redelivered outcome inserts zero rows, produces exactly one settlement effect, and leaves balances unchanged (FR-135, Principle III)
+- [X] T086 [P] [US4] Write `tests/integration/test_resolution_corrections.py` — a correction is a new `resolution_seq` and never an overwrite (FR-136), and an outcome arriving after expiry is recorded with `settled = 0` and a reason, without re-settling returned stakes (FR-138)
 
 ### Implementation for User Story 4
 
-- [ ] T087 [US4] Implement the closed registry in `src/stakeroute/real/conditions.py` — `process_absent`, `disk_free_below`, `cpu_saturated`, `memory_pressure`, `test_failing`, `container_exited`, `log_error_rate_above` per contracts/observations.md. The model selects; it never invents a check (D-017)
-- [ ] T088 [US4] Validate `condition_name` against the registry and `condition_params` against that entry's signature in `src/stakeroute/model/validation.py`, rejecting with `UNKNOWN_CONDITION` or `INVALID_CONDITION_PARAMS` (FR-122)
-- [ ] T089 [US4] Implement `src/stakeroute/real/resolution.py` — re-run the bound check at the hypothesis deadline, write a `resolutions` row, and write through to `outcomes` on `resolution_seq = 1` so the feature-001 settlement path is untouched (FR-133, FR-148, SC-108)
-- [ ] T090 [US4] Settle exactly the forecasts open at `arrived_at_ms` in `src/stakeroute/worker/settlement_runner.py` (FR-134)
-- [ ] T091 [US4] Record a post-expiry arrival with `settled = 0` and `not_settled_reason`, surfaced rather than swallowed, in `src/stakeroute/real/resolution.py` (FR-138)
-- [ ] T092 [US4] Add the `resolution` block to `GET /api/hypotheses/{id}/trace` and the operator-confirmation path for a hypothesis that bound no condition, recording `determination='operator'` (FR-133, D-017)
+- [X] T087 [US4] Implement the closed registry in `src/stakeroute/real/conditions.py` — `process_absent`, `disk_free_below`, `cpu_saturated`, `memory_pressure`, `test_failing`, `container_exited`, `log_error_rate_above` per contracts/observations.md. The model selects; it never invents a check (D-017)
+- [X] T088 [US4] Validate `condition_name` against the registry and `condition_params` against that entry's signature in `src/stakeroute/model/validation.py`, rejecting with `UNKNOWN_CONDITION` or `INVALID_CONDITION_PARAMS` (FR-122)
+- [X] T089 [US4] Implement `src/stakeroute/real/resolution.py` — re-run the bound check at the hypothesis deadline, write a `resolutions` row, and write through to `outcomes` on `resolution_seq = 1` so the feature-001 settlement path is untouched (FR-133, FR-148, SC-108)
+- [X] T090 [US4] Settle exactly the forecasts open at `arrived_at_ms` in `src/stakeroute/worker/settlement_runner.py` (FR-134)
+- [X] T091 [US4] Record a post-expiry arrival with `settled = 0` and `not_settled_reason`, surfaced rather than swallowed, in `src/stakeroute/real/resolution.py` (FR-138)
+- [X] T092 [US4] Add the `resolution` block to `GET /api/hypotheses/{id}/trace` and the operator-confirmation path for a hypothesis that bound no condition, recording `determination='operator'` (FR-133, D-017)
 
 **Checkpoint**: Outcomes are observations rather than opinions, and corrections are auditable. T017 still green.
 

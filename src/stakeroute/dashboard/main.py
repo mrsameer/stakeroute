@@ -50,6 +50,7 @@ from stakeroute.model.protocol import (
     CAPABILITY_HYPOTHESIS_PROPOSAL,
     CAPABILITY_PROSE_EXPLANATION,
 )
+from stakeroute.real.resolution import next_resolution_seq, record_resolution
 from stakeroute.simulator.agents import AgentProfile
 from stakeroute.simulator.scenarios import ForecastSpec, ScenarioWorld, generate_world
 from stakeroute.simulator.stress import inject_correlated, inject_sybils
@@ -697,13 +698,69 @@ def hypothesis_trace(hypothesis_id: str) -> dict:
             }
         )
 
+    resolution_block = None
+    latest = repo.latest_resolution(hypothesis_id)
+    if latest is not None:
+        resolution_block = {
+            "resolution_seq": latest["resolution_seq"],
+            "outcome": latest["outcome"],
+            "determination": latest["determination"],
+            "source": latest["source"],
+            "check_name": latest["check_name"],
+            "check_params": (
+                json.loads(latest["check_params"]) if latest["check_params"] else None
+            ),
+            "check_result": latest["check_result"],
+            "checked_at_ms": latest["checked_at_ms"],
+            "arrived_at_ms": latest["arrived_at_ms"],
+            "settled": bool(latest["settled"]),
+            "not_settled_reason": latest["not_settled_reason"],
+        }
+
     return {
         "hypothesis_id": hypothesis_id,
         "mode": hypothesis["mode"],
         "proposal": proposal_block,
         "observations": observations_block,
         "forecasts": forecasts_block,
-        "resolution": None,
+        "resolution": resolution_block,
+    }
+
+
+class ResolveRealRequest(BaseModel):
+    outcome: int
+
+
+@app.post("/api/hypotheses/{hypothesis_id}/resolve")
+def resolve_real_hypothesis(hypothesis_id: str, request: ResolveRealRequest) -> dict:
+    """FR-133, D-017: operator confirmation, for a hypothesis whose
+    proposal bound no checkable condition — the registry cannot express
+    every situation, and that boundary falls back to a human judgement
+    rather than a fabricated automatic check. Recorded with
+    ``determination='operator'``, distinguishable from an automatic
+    resolution in the same trace (contrast ``real/resolution.py``'s
+    ``resolve_hypothesis``, which never reaches this path)."""
+    repo = get_repo()
+    hypothesis = repo.get_hypothesis(hypothesis_id)
+    if hypothesis is None:
+        raise HTTPException(status_code=404, detail="hypothesis not found")
+
+    result = record_resolution(
+        repo,
+        hypothesis["tenant_id"],
+        hypothesis_id,
+        resolution_seq=next_resolution_seq(repo, hypothesis_id),
+        outcome=request.outcome,
+        determination="operator",
+        source="operator",
+        arrived_at_ms=now_ms(),
+    )
+    return {
+        "hypothesis_id": hypothesis_id,
+        "outcome": result.outcome,
+        "resolution_seq": result.resolution_seq,
+        "status": result.status,
+        "settled": result.settled,
     }
 
 

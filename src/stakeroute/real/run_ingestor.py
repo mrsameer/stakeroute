@@ -68,6 +68,7 @@ from stakeroute.real.collectors.host_metrics import HostMetricsCollector
 from stakeroute.real.collectors.vcs_tests import VcsTestsCollector
 from stakeroute.real.proposal import run_proposal_cycle
 from stakeroute.real.reasoners import run_agent_forecast
+from stakeroute.real.resolution import resolve_hypothesis
 from stakeroute.real.scopes import EvidenceAccessScope, build_evidence_bundle
 from stakeroute.storage.repository import Repository
 
@@ -271,6 +272,39 @@ async def _agent_forecast_loop(
                     )
 
 
+async def _resolution_loop(
+    repo: Repository,
+    tenant_id: str,
+    poll_interval_s: float,
+) -> None:
+    """Re-check the condition bound to each open, past-deadline real
+    hypothesis (FR-133, FR-148) — the automatic half of "let it resolve".
+    A hypothesis that bound no condition, or is already resolved, is left
+    alone: the former waits on operator confirmation
+    (``POST /api/hypotheses/{id}/resolve``), and ``resolve_hypothesis``
+    would only re-record the latter as a harmless redelivery anyway.
+    """
+    while True:
+        await asyncio.sleep(poll_interval_s)
+        now_ms = int(time.time() * 1000)
+        for hypothesis in repo.list_hypotheses(tenant_id, status="open"):
+            if hypothesis["mode"] != "real":
+                continue
+            if hypothesis["condition_name"] is None:
+                continue
+            if now_ms < hypothesis["deadline_ms"]:
+                continue
+            if repo.latest_resolution(hypothesis["id"]) is not None:
+                continue
+            result = await resolve_hypothesis(repo, tenant_id, hypothesis["id"], now_ms)
+            if result is not None:
+                print(
+                    f"ingestor: resolved {hypothesis['id']} "
+                    f"outcome={result.outcome} via {hypothesis['condition_name']}",
+                    flush=True,
+                )
+
+
 async def run() -> None:
     tenant_id = REAL_TENANT_ID
     now_ms = int(time.time() * 1000)
@@ -332,6 +366,9 @@ async def run() -> None:
                 repo, tenant_id, model, PROPOSAL_INTERVAL_S, MODEL_TIMEOUT_S
             )
         )
+    )
+    tasks.append(
+        asyncio.create_task(_resolution_loop(repo, tenant_id, PROPOSAL_INTERVAL_S))
     )
 
     try:

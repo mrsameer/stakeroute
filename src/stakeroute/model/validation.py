@@ -5,32 +5,19 @@
 ``core/estimates.py`` from the cited observations (D-016) — the schema
 itself is the enforcement, since the model is never asked for a number.
 
-The checkable-condition signatures below are structural only (name →
-required parameter keys), not the executable predicates — those are a
-closed registry in ``real/conditions.py`` (D-017), which this module does
-not depend on so it stays usable before that registry exists.
+The checkable-condition parameter signatures are read from
+``real/conditions.py``'s closed registry — the same source that runs the
+check later, so a name or parameter set accepted here is guaranteed
+runnable there (D-017).
 """
 
 from __future__ import annotations
 
 from stakeroute.config import STAKE_MAX, STAKE_MIN
 from stakeroute.model.protocol import ForecastDraft, ProposalDraft, RejectionReason
+from stakeroute.real.conditions import CONDITIONS
 
 STATEMENT_MAX_LEN = 500
-
-# Structural signatures for contracts/observations.md's closed registry.
-# Kept here as data because model/validation.py must be usable before
-# real/conditions.py exists (Phase 2 precedes Phase 6); T088 wires this
-# module to the real registry once it exists.
-CONDITION_PARAM_SIGNATURES: dict[str, frozenset[str]] = {
-    "process_absent": frozenset({"name"}),
-    "disk_free_below": frozenset({"mount", "pct"}),
-    "cpu_saturated": frozenset({"threshold", "window_s"}),
-    "memory_pressure": frozenset({"threshold_pct"}),
-    "test_failing": frozenset({"node_id"}),
-    "container_exited": frozenset({"name"}),
-    "log_error_rate_above": frozenset({"logger", "rate_per_min"}),
-}
 
 
 def validate_proposal(
@@ -82,12 +69,12 @@ def validate_proposal(
     if condition_name is not None:
         if not isinstance(condition_name, str):
             return "MALFORMED_SHAPE"
-        signature = CONDITION_PARAM_SIGNATURES.get(condition_name)
-        if signature is None:
+        spec = CONDITIONS.get(condition_name)
+        if spec is None:
             return "UNKNOWN_CONDITION"
         if not isinstance(condition_params, dict):
             return "INVALID_CONDITION_PARAMS"
-        if frozenset(condition_params.keys()) != signature:
+        if frozenset(condition_params.keys()) != spec.param_names:
             return "INVALID_CONDITION_PARAMS"
     elif condition_params is not None:
         return "MALFORMED_SHAPE"

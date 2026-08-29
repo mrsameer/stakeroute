@@ -42,6 +42,15 @@ def settle_hypothesis(
         return False
 
     for forecast_row in repo.list_forecasts_for_hypothesis(hypothesis_id):
+        # Settle exactly the forecasts open when the outcome arrived
+        # (FR-134): created no later than, and not yet expired at,
+        # resolved_at_ms. A no-op filter for feature 001 — its forecasts'
+        # expires_at_ms is always far beyond any resolution it settles.
+        if forecast_row["created_at_ms"] > resolved_at_ms:
+            continue
+        if forecast_row["expires_at_ms"] <= resolved_at_ms:
+            continue
+
         agent = repo.get_agent(forecast_row["agent_id"])
         if agent is None:
             continue
