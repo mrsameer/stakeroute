@@ -279,3 +279,31 @@ the honest rendering and is preferable to inventing numbers (FR-034).
 
 **Do not begin Phase 8 while any earlier phase is red.** Principle VI exists precisely because UI
 work is the most tempting and least valuable thing to do under time pressure.
+
+### Solo-build reality check
+
+This is a confirmed single-contributor build in one day. 91 tasks will not all land, and planning
+as though they will is how a demo ends up half-finished in every direction instead of finished in
+one. Plan to the protected path and treat everything else as upside:
+
+**Protected path — 65 tasks**: Phase 1 (6) → Phase 2 (23) → Phase 3 (7) → Phase 4 (11) →
+Phase 7 (10) → Phase 8 (8). That yields the full five-minute demo: routing, the attack that breaks
+the baselines, durable recovery, and a clickable screen.
+
+**Phase 7 is the single largest schedule risk.** NATS plus Compose plus a Dockerfile is the part
+most likely to consume an unplanned two hours, and it is the only part whose failure is
+operational rather than logical. Timebox it. If it overruns, the fallback is not to skip the
+durability story but to *demonstrate it differently*: T068 and T069 already prove idempotency and
+crash recovery through the in-process driver with configurable redelivery, so the claim can be
+shown as a passing test suite alongside the architecture diagram. That is weaker than killing a
+live container, and it is far better than a broken `docker compose up` in front of judges.
+
+**Cut order if the day compresses further**: Phase 9 polish beyond T087–T090, then Phase 6
+(measurement), then Phase 5 (settlement). Note what each cut costs — dropping Phase 6 means the
+metrics strip reads "not measured", which is the honest rendering under FR-034; dropping Phase 5
+means reputation never visibly updates, which removes the demo's closing beat and weakens the
+argument that influence is *earned*. Phase 5 is therefore the last thing to cut, not the first.
+
+**What not to do**: do not compress Phase 2. The mechanism and its tests are the contribution, and
+they are also what makes every later phase debuggable. A solo builder who skips the fast test loop
+pays for it with interest during the afternoon.

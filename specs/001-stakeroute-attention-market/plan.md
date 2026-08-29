@@ -189,11 +189,12 @@ undetected evidence correlation, capital exhaustion, race conditions between the
 settlement, and malformed or boundary-valued forecasts. Findings feed the demo's trade-off segment
 as evidence rather than speculation.
 
-**Limitation — stated under Principle V.** On the current single-contributor allocation the
-adversarial reviewer and the implementer are the same person, which is materially weaker than an
-independent attacker: an author tends to attack a system along the axes they already considered
-while building it. The constitutional requirement is met in letter, and the honest reading is that
-it is met weakly.
+**Limitation — stated under Principle V.** This is a confirmed single-contributor build. The
+adversarial reviewer and the implementer are therefore the same person, which is materially weaker
+than an independent attacker: an author tends to attack a system along the axes they already
+considered while building it. The constitutional requirement is met in letter, and the honest
+reading is that it is met weakly. This is a known and accepted condition of the build, not an
+oversight to be resolved later.
 
 Two things partially compensate, and neither fully closes the gap:
 
@@ -202,9 +203,11 @@ Two things partially compensate, and neither fully closes the gap:
 2. The baseline strategies (T037–T039) are written to fail on purpose, so a mechanism that stops
    discriminating between them breaks a test rather than passing silently.
 
-**If a second contributor joins**, adversarial review moves to them and this table is updated in
-the same commit. Whoever holds the role does not write mechanism code — the value of the role is
-its independence, and the instruction that goes with it is: *your job is to make us lose.*
+**No second contributor is expected.** Were one to join, adversarial review would move to them and
+this table would be updated in the same commit, and whoever held the role would not write mechanism
+code — the value of the role is its independence. Absent that, independence is approximated by
+mechanisation: the attack tests must be written *before* the mechanism they attack is tuned, so
+that passing them is evidence rather than confirmation.
 
 ## Complexity Tracking
 
