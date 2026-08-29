@@ -187,3 +187,36 @@ class Settlement:
     prior_brier_score: float
     improvement: float
     credit_delta: int
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationSnapshot:
+    """One recorded ``events`` row, as the pure core sees it (feature 002).
+
+    The input to ``core/estimates.py`` and ``core/duplicates.py``. Carries
+    only what a deterministic estimator needs — no repository handle, no
+    tenant id beyond what identifies the observation itself.
+    """
+
+    event_id: str
+    source: str
+    observed_at_ms: int
+    payload: dict
+    severity: float
+
+
+@dataclass(frozen=True, slots=True)
+class AttributeEstimate:
+    """A derived attribute and the basis that produced it (D-016).
+
+    ``basis`` is required, not optional — Principle II makes an unexplained
+    number a defect, so an estimate without a derivation is unrepresentable.
+    ``estimator`` names the pure function in ``core/estimates.py`` that
+    computed ``value``, tying a displayed number back to code the purity
+    test guards.
+    """
+
+    attribute: str
+    value: float
+    basis: str
+    estimator: str

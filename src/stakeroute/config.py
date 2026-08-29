@@ -38,3 +38,39 @@ DEFAULT_TENANT_ID = "acmepay"
 # per-request toggle.
 TRANSPORT_MODE = os.environ.get("STAKEROUTE_TRANSPORT", "memory")
 NATS_URL = os.environ.get("STAKEROUTE_NATS_URL", "nats://localhost:4222")
+
+# Real system mode (feature 002). "sim" reproduces feature 001 unchanged;
+# "real" runs collectors and reasoning agents against the host; "replay"
+# drives a scratch database from recorded inputs (D-012, D-019).
+STAKEROUTE_MODE = os.environ.get("STAKEROUTE_MODE", "sim")
+
+# Model selection: "gemini" is the live Vertex AI adapter, "none" is the
+# NullModelClient (FR-126), "recorded" is the RecordedModelClient used by
+# replay (D-012). Never read the credential file's contents here — only
+# its path (FR-127).
+STAKEROUTE_MODEL = os.environ.get("STAKEROUTE_MODEL", "none")
+GOOGLE_APPLICATION_CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+
+# Real tenant (D-018). The seeded simulation keeps DEFAULT_TENANT_ID/"acmepay".
+REAL_TENANT_ID = "hostops"
+
+# Model boundary (D-011, D-020, contracts/model-boundary.md)
+MODEL_TIMEOUT_S = 10.0
+MODEL_CEILING_CALLS_PER_HOUR = int(
+    os.environ.get("STAKEROUTE_MODEL_CEILING_CALLS_PER_HOUR", "60")
+)
+
+# Calibration insufficiency (D-022)
+MIN_RESOLVED_FOR_CALIBRATION = 10
+
+# Collectors and proposal cadence (D-015, contracts/observations.md)
+COLLECTOR_POLL_INTERVAL_S = 2.0
+SOURCE_SILENCE_THRESHOLD_MS = 30_000
+PROPOSAL_INTERVAL_S = 30.0
+OBSERVATIONS_PER_INTERVAL_LIMIT = 50
+
+# Duplicate detection (D-023)
+DUPLICATE_JACCARD_THRESHOLD = 0.6
+
+# Reputation decay (D-021)
+REPUTATION_HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000  # one week

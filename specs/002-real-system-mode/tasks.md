@@ -43,12 +43,12 @@ Three deliberate departures from a straight P1 → P2 walk:
 
 **Purpose**: Dependencies, package skeleton, configuration, and the credential guard. No mechanism logic.
 
-- [ ] T001 Add runtime dependencies with `uv add google-genai psutil`, updating `pyproject.toml` and `uv.lock` (D-011, D-015)
-- [ ] T002 [P] Create package tree `src/stakeroute/model/__init__.py`, `src/stakeroute/real/__init__.py`, `src/stakeroute/real/collectors/__init__.py`, `src/stakeroute/replay/__init__.py`
-- [ ] T003 [P] Add real-mode constants to `src/stakeroute/config.py`: `REAL_TENANT_ID="hostops"`, `MODEL_TIMEOUT_S=10.0`, `MODEL_CEILING_CALLS_PER_HOUR`, `MIN_RESOLVED_FOR_CALIBRATION=10`, `COLLECTOR_POLL_INTERVAL_S=2.0`, `SOURCE_SILENCE_THRESHOLD_MS`, `PROPOSAL_INTERVAL_S`, `OBSERVATIONS_PER_INTERVAL_LIMIT`, `DUPLICATE_JACCARD_THRESHOLD`, `REPUTATION_HALF_LIFE_MS`
-- [ ] T004 [P] Add mode and model selection to `src/stakeroute/config.py`: `STAKEROUTE_MODE` (`real|sim|replay`, default `sim`) and `STAKEROUTE_MODEL` (`gemini|none|recorded`, default `none`); read the credential file **path** from `GOOGLE_APPLICATION_CREDENTIALS` and never its contents (FR-127)
-- [ ] T005 [P] Add `tests/unit/test_no_credentials_committed.py` asserting no git-tracked file contains a credential-shaped string and that `vertex-ai-credentials.json` is ignored (SC-112, first half)
-- [ ] T006 [P] Extend `tests/conftest.py` with `real_repo` (a `hostops`-seeded repository), `null_model` (a `NullModelClient`), and `frozen_clock` fixtures
+- [X] T001 Add runtime dependencies with `uv add google-genai psutil`, updating `pyproject.toml` and `uv.lock` (D-011, D-015)
+- [X] T002 [P] Create package tree `src/stakeroute/model/__init__.py`, `src/stakeroute/real/__init__.py`, `src/stakeroute/real/collectors/__init__.py`, `src/stakeroute/replay/__init__.py`
+- [X] T003 [P] Add real-mode constants to `src/stakeroute/config.py`: `REAL_TENANT_ID="hostops"`, `MODEL_TIMEOUT_S=10.0`, `MODEL_CEILING_CALLS_PER_HOUR`, `MIN_RESOLVED_FOR_CALIBRATION=10`, `COLLECTOR_POLL_INTERVAL_S=2.0`, `SOURCE_SILENCE_THRESHOLD_MS`, `PROPOSAL_INTERVAL_S`, `OBSERVATIONS_PER_INTERVAL_LIMIT`, `DUPLICATE_JACCARD_THRESHOLD`, `REPUTATION_HALF_LIFE_MS`
+- [X] T004 [P] Add mode and model selection to `src/stakeroute/config.py`: `STAKEROUTE_MODE` (`real|sim|replay`, default `sim`) and `STAKEROUTE_MODEL` (`gemini|none|recorded`, default `none`); read the credential file **path** from `GOOGLE_APPLICATION_CREDENTIALS` and never its contents (FR-127)
+- [X] T005 [P] Add `tests/unit/test_no_credentials_committed.py` asserting no git-tracked file contains a credential-shaped string and that `vertex-ai-credentials.json` is ignored (SC-112, first half)
+- [X] T006 [P] Extend `tests/conftest.py` with `real_repo` (a `hostops`-seeded repository), `null_model` (a `NullModelClient`), and `frozen_clock` fixtures
 
 **Checkpoint**: `uv sync` succeeds; `uv run pytest` collects and passes with no behaviour change.
 
@@ -62,44 +62,44 @@ Three deliberate departures from a straight P1 → P2 walk:
 
 ### Schema and storage
 
-- [ ] T007 Add `mode TEXT NOT NULL DEFAULT 'sim'` to `events`, `hypotheses`, `forecasts`, `attention_decisions`, `outcomes` and `settlements` in `src/stakeroute/storage/repository.py` — the default is what keeps every feature-001 row and query path unchanged (D-019, SC-108)
-- [ ] T008 [P] Create `observation_sources` table in `src/stakeroute/storage/repository.py` per data-model.md, with `state IN ('live','quiet','silent','absent')` and a `state='absent' ⇒ absent_reason NOT NULL` validation
-- [ ] T009 [P] Create `model_interactions` table and `idx_model_interactions_tenant_time` in `src/stakeroute/storage/repository.py`, with `accepted=0 ⇒ rejection_reason NOT NULL` and `accepted=1 ⇒ response NOT NULL`
-- [ ] T010 [P] Create `proposals` table in `src/stakeroute/storage/repository.py` with `interaction_id NOT NULL`, `status IN ('pending','promoted','rejected','merged')`
-- [ ] T011 [P] Create `attribute_estimates` table in `src/stakeroute/storage/repository.py` with `basis NOT NULL`, `estimator NOT NULL`, `UNIQUE(hypothesis_id, attribute, created_at_ms)` and a `superseded_by` self-reference
-- [ ] T012 [P] Create `resolutions` table in `src/stakeroute/storage/repository.py` with `UNIQUE(dedup_key)` and `UNIQUE(hypothesis_id, resolution_seq)` — the same idempotency pattern as `events.event_id` (Principle III)
-- [ ] T013 [P] Create `replay_runs` table in `src/stakeroute/storage/repository.py` with `model_requests_made` recorded rather than asserted
-- [ ] T014 Add `hypotheses.proposal_id`, `hypotheses.condition_name`, `hypotheses.condition_params`, `forecasts.evidence_bundle`, `forecasts.rationale`, `forecasts.interaction_id` in `src/stakeroute/storage/repository.py` (depends on T008–T013)
-- [ ] T015 Add tenant-scoped accessors for the six new tables to `Repository` in `src/stakeroute/storage/repository.py`, using `ON CONFLICT DO NOTHING` on every path that has a uniqueness constraint
-- [ ] T016 Seed the `hostops` tenant row alongside `acmepay` at schema init in `src/stakeroute/storage/repository.py` (D-018)
-- [ ] T017 Create `tests/integration/test_feature_001_unchanged.py` asserting the full feature-001 suite passes after the migration and the seeded scenario reproduces the results recorded in `specs/001-stakeroute-attention-market/run-log.md` (SC-108, FR-132)
+- [X] T007 Add `mode TEXT NOT NULL DEFAULT 'sim'` to `events`, `hypotheses`, `forecasts`, `attention_decisions`, `outcomes` and `settlements` in `src/stakeroute/storage/repository.py` — the default is what keeps every feature-001 row and query path unchanged (D-019, SC-108)
+- [X] T008 [P] Create `observation_sources` table in `src/stakeroute/storage/repository.py` per data-model.md, with `state IN ('live','quiet','silent','absent')` and a `state='absent' ⇒ absent_reason NOT NULL` validation
+- [X] T009 [P] Create `model_interactions` table and `idx_model_interactions_tenant_time` in `src/stakeroute/storage/repository.py`, with `accepted=0 ⇒ rejection_reason NOT NULL` and `accepted=1 ⇒ response NOT NULL`
+- [X] T010 [P] Create `proposals` table in `src/stakeroute/storage/repository.py` with `interaction_id NOT NULL`, `status IN ('pending','promoted','rejected','merged')`
+- [X] T011 [P] Create `attribute_estimates` table in `src/stakeroute/storage/repository.py` with `basis NOT NULL`, `estimator NOT NULL`, `UNIQUE(hypothesis_id, attribute, created_at_ms)` and a `superseded_by` self-reference
+- [X] T012 [P] Create `resolutions` table in `src/stakeroute/storage/repository.py` with `UNIQUE(dedup_key)` and `UNIQUE(hypothesis_id, resolution_seq)` — the same idempotency pattern as `events.event_id` (Principle III)
+- [X] T013 [P] Create `replay_runs` table in `src/stakeroute/storage/repository.py` with `model_requests_made` recorded rather than asserted
+- [X] T014 Add `hypotheses.proposal_id`, `hypotheses.condition_name`, `hypotheses.condition_params`, `forecasts.evidence_bundle`, `forecasts.rationale`, `forecasts.interaction_id` in `src/stakeroute/storage/repository.py` (depends on T008–T013)
+- [X] T015 Add tenant-scoped accessors for the six new tables to `Repository` in `src/stakeroute/storage/repository.py`, using `ON CONFLICT DO NOTHING` on every path that has a uniqueness constraint
+- [X] T016 Seed the `hostops` tenant row alongside `acmepay` at schema init in `src/stakeroute/storage/repository.py` (D-018)
+- [X] T017 Create `tests/integration/test_feature_001_unchanged.py` asserting the full feature-001 suite passes after the migration and the seeded scenario reproduces the results recorded in `specs/001-stakeroute-attention-market/run-log.md` (SC-108, FR-132)
 
 ### Pure mechanism additions (tests first — write these before T021–T024 and watch them fail)
 
-- [ ] T018 [P] Write `tests/unit/test_estimates.py` covering impact from observation count and severity, urgency from recency, review cost from scope, and the requirement that every returned estimate carries a non-empty `basis` and an `estimator` name (FR-108, D-016)
-- [ ] T019 [P] Write `tests/unit/test_decay.py` covering `decay_reputation(current, elapsed_ms, half_life_ms)` — half-life behaviour, zero elapsed is identity, the floor is approached but never becomes absorbing (FR-137, D-021)
-- [ ] T020 [P] Write `tests/unit/test_duplicates.py` covering exact-condition-match merge, Jaccard-threshold flag inside a time window, and no false positive across unrelated conditions (FR-110, D-023)
-- [ ] T021 Add `ObservationSnapshot` and `AttributeEstimate` frozen dataclasses to `src/stakeroute/core/types.py` — `AttributeEstimate.basis` is a required field, so an estimate without a derivation is unrepresentable (Principle II)
-- [ ] T022 Implement `src/stakeroute/core/estimates.py` — pure functions from cited `ObservationSnapshot`s to impact, urgency and review cost, each returning an `AttributeEstimate`. **This is the module that makes FR-108 and FR-119 both hold** (D-016)
-- [ ] T023 [P] Implement `src/stakeroute/core/decay.py` — additive only; `src/stakeroute/core/reputation.py::update_reputation` MUST NOT be modified (D-021, SC-108)
-- [ ] T024 [P] Implement `src/stakeroute/core/duplicates.py` — a rule over bound conditions and cited observation sets, derivable on a whiteboard (Principle II, D-023)
-- [ ] T025 Extend `FORBIDDEN_MODULES` in `tests/unit/test_core_purity.py` with `stakeroute.model`, `stakeroute.real`, `stakeroute.replay`, `subprocess`, `psutil` and `google` — this is the enforcement behind FR-119, not a style rule
+- [X] T018 [P] Write `tests/unit/test_estimates.py` covering impact from observation count and severity, urgency from recency, review cost from scope, and the requirement that every returned estimate carries a non-empty `basis` and an `estimator` name (FR-108, D-016)
+- [X] T019 [P] Write `tests/unit/test_decay.py` covering `decay_reputation(current, elapsed_ms, half_life_ms)` — half-life behaviour, zero elapsed is identity, the floor is approached but never becomes absorbing (FR-137, D-021)
+- [X] T020 [P] Write `tests/unit/test_duplicates.py` covering exact-condition-match merge, Jaccard-threshold flag inside a time window, and no false positive across unrelated conditions (FR-110, D-023)
+- [X] T021 Add `ObservationSnapshot` and `AttributeEstimate` frozen dataclasses to `src/stakeroute/core/types.py` — `AttributeEstimate.basis` is a required field, so an estimate without a derivation is unrepresentable (Principle II)
+- [X] T022 Implement `src/stakeroute/core/estimates.py` — pure functions from cited `ObservationSnapshot`s to impact, urgency and review cost, each returning an `AttributeEstimate`. **This is the module that makes FR-108 and FR-119 both hold** (D-016)
+- [X] T023 [P] Implement `src/stakeroute/core/decay.py` — additive only; `src/stakeroute/core/reputation.py::update_reputation` MUST NOT be modified (D-021, SC-108)
+- [X] T024 [P] Implement `src/stakeroute/core/duplicates.py` — a rule over bound conditions and cited observation sets, derivable on a whiteboard (Principle II, D-023)
+- [X] T025 Extend `FORBIDDEN_MODULES` in `tests/unit/test_core_purity.py` with `stakeroute.model`, `stakeroute.real`, `stakeroute.replay`, `subprocess`, `psutil` and `google` — this is the enforcement behind FR-119, not a style rule
 
 ### The model boundary (tests first — write T026–T027 before T028–T033)
 
-- [ ] T026 [P] Write `tests/unit/test_model_validation.py` covering every rejection reason in contracts/model-boundary.md: `MALFORMED_SHAPE`, `NO_CITATIONS`, `UNKNOWN_CITATION`, `CITATION_OUT_OF_WINDOW`, `UNKNOWN_CONDITION`, `INVALID_CONDITION_PARAMS`, `PROBABILITY_OUT_OF_RANGE`, `STAKE_OUT_OF_RANGE`, `INSUFFICIENT_CREDITS`, `EVIDENCE_SCOPE_VIOLATION`, `REFUSAL` (FR-122)
-- [ ] T027 [P] Write `tests/unit/test_model_budget.py` covering ceiling exhaustion producing `ceiling_reached` with the specific capability named, and consumption reported against the ceiling (FR-125, D-020)
-- [ ] T028 Define `ModelClient` Protocol, `ModelResult = Accepted | Rejected`, `ModelState` and `RejectionReason` in `src/stakeroute/model/protocol.py` per contracts/model-boundary.md — `Rejected` must be a type a caller cannot silently ignore
-- [ ] T029 Implement `src/stakeroute/model/validation.py` — proposal and forecast schema validation. The proposal schema has **no** `impact`, `urgency`, `review_cost` or `probability` field; the schema is the enforcement (D-016)
-- [ ] T030 [P] Implement `NullModelClient` in `src/stakeroute/model/null.py` — always `Rejected(MODEL_DISABLED)`, `state() == 'unconfigured'` (FR-126, SC-113)
-- [ ] T031 [P] Implement `src/stakeroute/model/budget.py` — per-interval call ceiling, degrading capability and never the decision path (D-020)
-- [ ] T032 Implement `ModelInteractionRecorder` in `src/stakeroute/model/recorder.py` — writes exactly one `model_interactions` row **before** any result is used, including timeouts and transport failures (FR-123, FR-128)
-- [ ] T033 Implement `GeminiClient` in `src/stakeroute/model/gemini.py` — Vertex AI via `google-genai`, per-request timeout, redacted prompt as sent. Nothing outside this module imports the SDK (D-011); no token ever enters a prompt or a log line (FR-127)
+- [X] T026 [P] Write `tests/unit/test_model_validation.py` covering every rejection reason in contracts/model-boundary.md: `MALFORMED_SHAPE`, `NO_CITATIONS`, `UNKNOWN_CITATION`, `CITATION_OUT_OF_WINDOW`, `UNKNOWN_CONDITION`, `INVALID_CONDITION_PARAMS`, `PROBABILITY_OUT_OF_RANGE`, `STAKE_OUT_OF_RANGE`, `INSUFFICIENT_CREDITS`, `EVIDENCE_SCOPE_VIOLATION`, `REFUSAL` (FR-122)
+- [X] T027 [P] Write `tests/unit/test_model_budget.py` covering ceiling exhaustion producing `ceiling_reached` with the specific capability named, and consumption reported against the ceiling (FR-125, D-020)
+- [X] T028 Define `ModelClient` Protocol, `ModelResult = Accepted | Rejected`, `ModelState` and `RejectionReason` in `src/stakeroute/model/protocol.py` per contracts/model-boundary.md — `Rejected` must be a type a caller cannot silently ignore
+- [X] T029 Implement `src/stakeroute/model/validation.py` — proposal and forecast schema validation. The proposal schema has **no** `impact`, `urgency`, `review_cost` or `probability` field; the schema is the enforcement (D-016)
+- [X] T030 [P] Implement `NullModelClient` in `src/stakeroute/model/null.py` — always `Rejected(MODEL_DISABLED)`, `state() == 'unconfigured'` (FR-126, SC-113)
+- [X] T031 [P] Implement `src/stakeroute/model/budget.py` — per-interval call ceiling, degrading capability and never the decision path (D-020)
+- [X] T032 Implement `ModelInteractionRecorder` in `src/stakeroute/model/recorder.py` — writes exactly one `model_interactions` row **before** any result is used, including timeouts and transport failures (FR-123, FR-128)
+- [X] T033 Implement `GeminiClient` in `src/stakeroute/model/gemini.py` — Vertex AI via `google-genai`, per-request timeout, redacted prompt as sent. Nothing outside this module imports the SDK (D-011); no token ever enters a prompt or a log line (FR-127)
 
 ### Redaction — one boundary, audited once
 
-- [ ] T034 [P] Write `tests/unit/test_redaction.py` covering the per-source allow-list and all five rewrite rules in contracts/observations.md — home-directory paths, other absolute paths, account names, `KEY=value` environment shapes, and credential-shaped strings (FR-146, SC-115)
-- [ ] T035 Implement `src/stakeroute/real/redaction.py` — allow-list then rewrite, applied at the ingestion boundary before any durable write, recording which rules fired (D-014)
+- [X] T034 [P] Write `tests/unit/test_redaction.py` covering the per-source allow-list and all five rewrite rules in contracts/observations.md — home-directory paths, other absolute paths, account names, `KEY=value` environment shapes, and credential-shaped strings (FR-146, SC-115)
+- [X] T035 Implement `src/stakeroute/real/redaction.py` — allow-list then rewrite, applied at the ingestion boundary before any durable write, recording which rules fired (D-014)
 
 **Checkpoint**: `uv run pytest tests/unit -q` green; `test_core_purity` green with the extended forbidden
 list; T017 green. The mechanism is correct before anything real is attached to it.

@@ -8,6 +8,8 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "nats-py>=2.9",
     "pydantic>=2.9",
+    "google-genai>=2.20.0",
+    "psutil>=7.2.2",
 ]
 
 [dependency-groups]

@@ -14,10 +14,16 @@ CORE_DIR = Path(__file__).parent.parent.parent / "src" / "stakeroute" / "core"
 FORBIDDEN_MODULES = {
     "stakeroute.storage",
     "stakeroute.transport",
+    "stakeroute.model",
+    "stakeroute.real",
+    "stakeroute.replay",
     "asyncio",
     "datetime",
     "time",
     "random",
+    "subprocess",
+    "psutil",
+    "google",
 }
 
 
