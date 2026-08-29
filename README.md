@@ -118,20 +118,3 @@ This is a hackathon prototype, and the specification is explicit about what has 
   the adversarial reviewer and the implementer are the same person, which is materially weaker
   than an independent attacker. Independence is approximated by mechanisation — the attack tests
   were written before the mechanism they attack was tuned — not by a second set of eyes.
-
-## Status
-
-Specification, plan, and implementation complete through Phase 8 (UI) plus the Phase 9
-remediation items. Built with [GitHub Spec Kit](https://github.com/github/spec-kit). The
-specification is the source of truth:
-
-- [`specs/001-stakeroute-attention-market/spec.md`](specs/001-stakeroute-attention-market/spec.md) — 5 prioritised user stories, 44 functional requirements, 12 success criteria
-- [`specs/001-stakeroute-attention-market/plan.md`](specs/001-stakeroute-attention-market/plan.md) — technical context, constitution gates, phased build order
-- [`specs/001-stakeroute-attention-market/research.md`](specs/001-stakeroute-attention-market/research.md) — 10 recorded decisions, each with its cost
-- [`specs/001-stakeroute-attention-market/data-model.md`](specs/001-stakeroute-attention-market/data-model.md) — entities, constraints, state transitions
-- [`specs/001-stakeroute-attention-market/quickstart.md`](specs/001-stakeroute-attention-market/quickstart.md) — 8 validation scenarios mapped to success criteria
-- [`specs/001-stakeroute-attention-market/run-log.md`](specs/001-stakeroute-attention-market/run-log.md) — real, recorded output from every scenario
-- [`specs/001-stakeroute-attention-market/contracts/`](specs/001-stakeroute-attention-market/contracts) — core library, event subjects, HTTP API
-- [`specs/001-stakeroute-attention-market/tasks.md`](specs/001-stakeroute-attention-market/tasks.md) — 91-task breakdown across 9 phases
-- [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — the six principles the design is gated against
-- [`architecture.svg`](architecture.svg) — the single architecture diagram
