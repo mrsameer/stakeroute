@@ -94,12 +94,6 @@ for the full transcript. Highlights:
 - **Metrics**: every ranking-quality metric reads `null` — not a placeholder zero — until ground
   truth exists, then populates from real recorded rows.
 
-Two real bugs were found and fixed while first running the Docker durability demo, not merely
-covered by a test after the fact: a starvation bug where one subject's continuous message trickle
-prevented the other subjects from ever being serviced, and a worker-restart bug that would have
-silently wiped all pre-kill progress instead of resuming from it. Both are described in the run
-log alongside the fix.
-
 ## What this is not
 
 This is a hackathon prototype, and the specification is explicit about what has **not** been proved:
@@ -109,10 +103,8 @@ This is a hackathon prototype, and the specification is explicit about what has 
 - The evidence-independence discount is a **heuristic** and can miss hidden correlation.
 - SQLite serialises writers. The durable bus (NATS JetStream) already supports multiple workers
   sharing a consumer, and the ledger's uniqueness constraints already make that safe — but the
-  demo store is SQLite, so the demo runs a single writer process by design, and even that
-  single-writer configuration needed real hardening (retry-on-lock, one subscription reused
-  per subject) to be reliable across three separate containers on one shared file. Moving to
-  Postgres is the change that would make true multi-worker scale-out real, and it is not done here.
+  demo store is SQLite, so the demo runs a single writer process by design. Moving to Postgres is
+  the change that would make true multi-worker scale-out real, and it is not done here.
 - This is a confirmed single-contributor build (see
   [`plan.md`](specs/001-stakeroute-attention-market/plan.md#team-allocation-and-adversarial-review)):
   the adversarial reviewer and the implementer are the same person, which is materially weaker
