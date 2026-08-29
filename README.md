@@ -166,6 +166,7 @@ for the full transcript. Highlights:
 - **Settlement**: agents that beat the prior gained reputation and credits; a confidently-wrong
   agent lost 18 credits and floored out at 0.1 reputation; no agent's loss ever exceeded its stake.
 - **Reproducibility**: the identical seed produces byte-identical rankings on a second run.
+  This is the *regenerable* guarantee, and it holds for the seeded simulation.
 - **Metrics**: every ranking-quality metric reads `null` — not a placeholder zero — until ground
   truth exists, then populates from real recorded rows.
 

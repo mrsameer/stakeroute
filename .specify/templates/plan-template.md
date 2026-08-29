@@ -56,14 +56,17 @@ except Gate I, which cannot be waived.
 - [ ] **IV. Attention Is a Budgeted Resource** — review budget finite, explicit and
       configurable; never exceeded under load or attack; suppressed items counted and
       reported.
-- [ ] **V. State What You Have Not Proved** — the three stated limitations appear in
-      user-facing docs and demo narration; every displayed metric derives from recorded
-      run data; no hard-coded benchmark figures.
+- [ ] **V. State What You Have Not Proved** — every stated limitation appears in
+      user-facing docs and demo narration, including shared-model correlation between
+      reasoners where it applies; every displayed metric derives from recorded run data and
+      names its provenance (measured or simulated); no hard-coded benchmark figures.
 - [ ] **VI. Demo Path First** — build order is mechanism → simulation → baseline →
       attack → measurement → failure recovery → UI; nothing off that path is planned.
-- [ ] **Additional Constraints** — `tenant_id` on every record; seeded reproducible
-      scenarios with deterministic tie-breaks; probabilities clamped off 0 and 1; loss
-      capped at stake; simulation only; three processes unless justified below.
+- [ ] **Additional Constraints** — `tenant_id` on every record; deterministic tie-breaks;
+      the reproducibility guarantee claimed (regenerable or replayable) named explicitly, and
+      met; probabilities clamped off 0 and 1; loss capped at stake; no blockchain or on-chain
+      settlement; no dependency whose absence stops ranking or settlement, with degradation
+      surfaced and interactions recorded; three processes unless justified below.
 - [ ] **Development Workflow** — `uv` only (never `pip`); type hints throughout with
       `pyright` passing; `ruff format` and `ruff check` passing at 88 columns; `pytest`
       with `anyio` for async; an adversarial reviewer assigned.

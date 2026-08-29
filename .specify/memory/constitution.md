@@ -1,40 +1,59 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: TEMPLATE (unfilled) → 1.0.0
-Bump rationale: MAJOR — initial ratification. No prior concrete version existed;
-the file was the unmodified spec-kit placeholder template.
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR — two Additional Constraints materially rewritten and one principle's
+obligations expanded. No principle removed, none redefined incompatibly, and every guarantee
+previously made is still made (the reproducibility guarantee is split into two named forms
+rather than weakened). Requested by specs/002-real-system-mode, whose Constitution Impact
+section identified both conflicts before implementation.
 
-Principles defined (all new):
-  - I. Deterministic Decision Path (NON-NEGOTIABLE)
-  - II. Explainability Over Sophistication
-  - III. Exactly-Once Economics
-  - IV. Attention Is a Budgeted Resource
-  - V. State What You Have Not Proved
-  - VI. Demo Path First
+Principles modified:
+  - V. State What You Have Not Proved — two obligations added: shared-model correlation
+    between reasoners is undiscounted and MUST be stated; a displayed figure MUST name its
+    provenance (measured or simulated) or MUST NOT be displayed. Title unchanged.
 
-Sections added:
-  - Additional Constraints (fills the template's second open section slot)
-  - Development Workflow (fills the template's third open section slot)
-  - Governance
+Additional Constraints modified:
+  - "Reproducibility" — split into two named guarantees, *regenerable* (seeded scenario
+    reproduces from configuration alone; unchanged in substance from 1.0.0) and *replayable*
+    (a run involving a non-regenerable component records every non-deterministic input before
+    consumption and replays from those inputs alone to byte-identical results, with no
+    outbound request during replay and divergence surfaced rather than overwritten). Claiming
+    the regenerable guarantee for a merely replayable run is now explicitly prohibited.
+  - "Process count" — the three named processes are now "an evidence source, a backend worker,
+    and a dashboard"; the first slot may be a simulator or a real-observation ingestor. Naming
+    only, the count is unchanged at three.
+  - "Simulation only" → "External dependencies" — the blanket prohibition on live
+    third-party integrations is narrowed to what it was protecting: no blockchain, token
+    issuance or on-chain settlement, and no dependency whose absence stops the decision path.
+    A live integration is permitted only if ranking and settlement continue without it, the
+    system starts with it unconfigured, its degradation is surfaced by name, and every
+    interaction is recorded. Simulation is now one way to satisfy the property rather than
+    the property itself.
 
-Template slots extended: the template ships 5 principle slots; 6 principles were
-requested and defined. Slot count extended rather than merging principles, since
-each maps to a distinct, independently verifiable gate.
+Principles unchanged: I, II, III, IV, VI. Principle I was NOT amended and was never in
+conflict — it already permits model inference to propose candidates and render explanations,
+and already requires ranking and settlement to survive inference being unavailable.
+
+Sections added: none. Sections removed: none.
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — Constitution Check gate populated
-  ✅ .specify/templates/tasks-template.md — mandatory-testing note added at the top, and
-     the per-story "(OPTIONAL - only if tests requested)" headings plus the "(if
-     requested)" / "(if included)" qualifiers reversed to match the testing discipline
-     below; sample auth task replaced (auth is out of scope)
-  ✅ .specify/templates/spec-template.md — no change needed; mandatory sections
-     already align (Assumptions + Success Criteria carry Principle V obligations)
-  ✅ README.md — "Design boundary" and "What this is not" already state
-     Principles I and V; no drift
+  ✅ .specify/templates/plan-template.md — Constitution Check gate rewritten for both amended
+     constraints (the gate previously read "simulation only" and "seeded reproducible
+     scenarios") and for Principle V's two new obligations
+  ✅ .specify/templates/tasks-template.md — no change needed; its testing discipline is
+     unaffected by this amendment
+  ✅ .specify/templates/spec-template.md — no change needed; contains no reference to either
+     amended constraint
+  ✅ README.md — the reproducibility bullet now names which guarantee it claims, as the
+     amended constraint requires
   ✅ .claude/skills/speckit-*/SKILL.md — no agent-specific name drift found
 
-Follow-up TODOs: none. No placeholder tokens deferred.
+Follow-up TODOs:
+  ⚠ specs/002-real-system-mode/plan.md records this amendment as pending and its Constitution
+    Check gate as FAIL. Re-run the gate against 1.1.0 before /speckit-tasks.
+  ⚠ Principle V's two new obligations and the replayable guarantee are unmet until feature 002
+    ships; they bind that work rather than describing the system today.
 -->
 
 # StakeRoute Constitution
@@ -113,10 +132,17 @@ narration, not confined to internal notes:
 - Sybil resistance is bounded by an attested-identity trust model and is NOT
   claimed for a permissionless setting.
 - The evidence-independence discount is a heuristic and CAN miss hidden correlation.
+- Where reasoners share one underlying model, they are NOT independent reasoners.
+  The evidence-independence discount keys on evidence rather than on reasoner, so
+  that correlation is undiscounted.
 
 Displayed metrics MUST derive from recorded run data. Fabricated, hard-coded, or
 aspirational benchmark figures MUST NOT be displayed under any circumstances. If a
 measurement was not taken, the system MUST show that it was not taken.
+
+Where a figure could have come from either measured real-world performance or a
+simulation, it MUST state which. A figure that cannot name its provenance MUST NOT
+be displayed.
 
 **Rationale**: Naming the boundary of a claim is what separates an engineering
 result from a marketing one. Overclaiming is the fastest way to lose a technically
@@ -142,22 +168,49 @@ the only thing that distinguishes this from a dashboard.
 including in single-tenant demonstrations, so the isolation boundary is defensible
 without retrofitting.
 
-**Reproducibility**: Scenarios MUST be seeded and reproducible. Identical
-configuration MUST produce identical rankings, identical settlements, and identical
-final agent balances. Tie-breaks MUST be deterministic; no ordering may depend on
-hash iteration order, wall-clock time, or unseeded randomness.
+**Reproducibility**: Two guarantees exist and MUST NOT be conflated. Wherever
+either is claimed, which one is being claimed MUST be stated.
+
+*Regenerable* — a seeded scenario MUST reproduce from its configuration alone:
+identical configuration MUST produce identical rankings, identical settlements, and
+identical final agent balances.
+
+*Replayable* — a run involving a component that cannot be regenerated MUST record
+every non-deterministic input durably before anything consumes it, and MUST replay
+from those recorded inputs alone to byte-identical rankings, settlements, and final
+agent balances. A replay MUST make no outbound request to the non-deterministic
+component. A replay that does not reproduce the recorded result MUST surface the
+divergence and MUST NOT overwrite the record.
+
+In both cases tie-breaks MUST be deterministic; no ordering may depend on hash
+iteration order, wall-clock time, or unseeded randomness. Claiming the regenerable
+guarantee for a run that satisfies only the replayable one is prohibited.
 
 **Bounded values**: Probabilities MUST be clamped away from exactly 0 and 1 so that
 scoring and any log-odds treatment remain well defined. Credit loss on a single
 forecast MUST NOT exceed the amount staked. Reputation MUST remain within its
 configured bounds and MUST retain a recovery path from the floor.
 
-**Simulation only**: No live third-party integrations. All external systems are
-simulated. No blockchain, token issuance, or on-chain settlement.
+**External dependencies**: No blockchain, token issuance, or on-chain settlement.
+
+No dependency may sit where its absence stops the decision path. Ranking and
+settlement MUST continue while any external service is unavailable, slow,
+rate-limited, or returning errors, and the system MUST start and operate with that
+service not configured at all. A live external integration is permitted only under
+those conditions. Its degradation MUST be surfaced explicitly, naming the capability
+that is consequently unavailable, and every interaction with it MUST be recorded and
+inspectable.
+
+This narrows an earlier blanket prohibition on live integrations to what that
+prohibition was actually protecting. Simulating an external system is one way to keep
+the decision path independent of it; it is not the only way, and it is not the
+property worth constitutionalizing.
 
 **Process count**: Service proliferation is not architectural maturity. The system
-SHOULD run as three processes (simulator, backend worker, dashboard) and MUST
-justify any additional process in the plan's Complexity Tracking table.
+SHOULD run as three processes — an evidence source, a backend worker, and a
+dashboard — and MUST justify any additional process in the plan's Complexity
+Tracking table. The evidence source may be a simulator or a real-observation
+ingestor; it is one slot either way.
 
 ## Development Workflow
 
@@ -208,4 +261,4 @@ implementation.
 escape hatch. A design placing model inference on the decision path is rejected, not
 justified.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29
+**Version**: 1.1.0 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29
