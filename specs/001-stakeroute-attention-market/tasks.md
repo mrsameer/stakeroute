@@ -162,13 +162,13 @@ confuse a mechanical failure with an operational one.
 
 **Independent test**: `GET /api/metrics` returns non-null values for all five with `measured_over_events` matching the real event count (quickstart V7, SC-012).
 
-- [ ] T056 [P] [US5] Implement `precision_at_k()` and `false_escalation_rate()` over `attention_decisions` joined to `outcomes` in `src/stakeroute/metrics.py`
-- [ ] T057 [P] [US5] Implement `time_to_attention()` as `decided_at_ms − created_at_ms` for true incidents in `src/stakeroute/metrics.py`
-- [ ] T058 [P] [US5] Implement `mean_brier_score()` over settled forecasts in `src/stakeroute/metrics.py`
-- [ ] T059 [US5] Implement throughput measurement — events ingested per second and ranking-pass lag behind the newest ingested event — in `src/stakeroute/metrics.py`
-- [ ] T060 [US5] Implement `GET /api/metrics` with **nullable** fields, where `null` means not-yet-measured, plus `measured_over_events` and `run_id`, in `src/stakeroute/dashboard/main.py`
-- [ ] T061 [US5] Write `tests/integration/test_metrics_are_real.py` — asserts every metric traces to recorded rows and that no constant appears in `metrics.py` output paths (FR-034)
-- [ ] T062 [US5] Write `tests/integration/test_throughput.py` — sustained-rate run asserting ingest ≥ 1,000 events/sec and ranking lag within the agreed bound, closing the SC-011 validation gap found by `/speckit-analyze`
+- [x] T056 [P] [US5] Implement `precision_at_k()` and `false_escalation_rate()` over `attention_decisions` joined to `outcomes` in `src/stakeroute/metrics.py`
+- [x] T057 [P] [US5] Implement `time_to_attention()` as `decided_at_ms − created_at_ms` for true incidents in `src/stakeroute/metrics.py`
+- [x] T058 [P] [US5] Implement `mean_brier_score()` over settled forecasts in `src/stakeroute/metrics.py`
+- [x] T059 [US5] Implement throughput measurement — events ingested per second and ranking-pass lag behind the newest ingested event — in `src/stakeroute/metrics.py`
+- [x] T060 [US5] Implement `GET /api/metrics` with **nullable** fields, where `null` means not-yet-measured, plus `measured_over_events` and `run_id`, in `src/stakeroute/dashboard/main.py`
+- [x] T061 [US5] Write `tests/integration/test_metrics_are_real.py` — asserts every metric traces to recorded rows and that no constant appears in `metrics.py` output paths (FR-034)
+- [x] T062 [US5] Write `tests/integration/test_throughput.py` — sustained-rate run asserting ingest ≥ 1,000 events/sec and ranking lag within the agreed bound, closing the SC-011 validation gap found by `/speckit-analyze`
 
 **Checkpoint**: Claims become measurements.
 

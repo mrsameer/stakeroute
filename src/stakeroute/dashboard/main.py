@@ -18,6 +18,14 @@ from pydantic import BaseModel
 
 from stakeroute.config import ATTENTION_BUDGET, DB_PATH, DEFAULT_TENANT_ID, EPOCH_GRANT
 from stakeroute.core.types import compute_event_id
+from stakeroute.metrics import (
+    events_per_second,
+    false_escalation_rate,
+    mean_brier_score,
+    precision_at_k,
+    ranking_pass_lag_ms,
+    time_to_attention_ms,
+)
 from stakeroute.simulator.agents import AgentProfile
 from stakeroute.simulator.scenarios import ForecastSpec, ScenarioWorld, generate_world
 from stakeroute.simulator.stress import inject_correlated, inject_sybils
@@ -43,6 +51,7 @@ _transport = MemoryTransport()
 # only so the attack demo (User Story 2) can be narrated against reality
 # before a hypothesis actually resolves. Reset on every run_normal.
 _ground_truth: dict[str, int] = {}
+_run_id: str | None = None
 
 
 def now_ms() -> int:
@@ -153,11 +162,13 @@ class RunNormalRequest(BaseModel):
 @app.post("/api/scenario/run_normal")
 async def run_normal(request: RunNormalRequest) -> dict:
     """Reset the tenant and run the baseline scenario (quickstart V1)."""
+    global _run_id
     repo = get_repo()
     tenant_id = DEFAULT_TENANT_ID
     now = now_ms()
     repo.reset_tenant(tenant_id)
     _ground_truth.clear()
+    _run_id = f"run-{request.seed}-{now}"
 
     world = generate_world(seed=request.seed, reference_ms=now)
     for hypothesis in world.hypotheses:
@@ -381,3 +392,41 @@ def list_agents() -> dict:
             }
         )
     return {"agents": agents}
+
+
+@app.get("/api/metrics")
+def metrics() -> dict:
+    """Five metrics plus ranking-pass lag, all from recorded run data.
+
+    Every field is nullable; ``null`` means not yet measured. Fabricating
+    a value here would be a constitutional violation (FR-034) — the
+    ``measured_over_events``/``measured_over`` counts alongside each value
+    are what make "measured" checkable rather than asserted.
+    """
+    repo = get_repo()
+    tenant_id = DEFAULT_TENANT_ID
+
+    precision, precision_n = precision_at_k(repo, tenant_id)
+    false_escalation, false_escalation_n = false_escalation_rate(repo, tenant_id)
+    time_to_attention, tta_n = time_to_attention_ms(repo, tenant_id)
+    brier, brier_n = mean_brier_score(repo, tenant_id)
+    throughput, throughput_n = events_per_second(repo, tenant_id)
+    lag, _lag_n = ranking_pass_lag_ms(repo, tenant_id)
+
+    return {
+        "precision_at_k": precision,
+        "false_escalation_rate": false_escalation,
+        "time_to_attention_ms": time_to_attention,
+        "mean_brier_score": brier,
+        "events_per_second": throughput,
+        "ranking_pass_lag_ms": lag,
+        "measured_over_events": repo.count_events(tenant_id),
+        "measured_over": {
+            "precision_at_k": precision_n,
+            "false_escalation_rate": false_escalation_n,
+            "time_to_attention_ms": tta_n,
+            "mean_brier_score": brier_n,
+            "events_per_second": throughput_n,
+        },
+        "run_id": _run_id,
+    }

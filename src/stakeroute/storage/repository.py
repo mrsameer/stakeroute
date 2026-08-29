@@ -410,6 +410,11 @@ class Repository:
         )
         return cursor.rowcount > 0
 
+    def get_outcome(self, hypothesis_id: str) -> sqlite3.Row | None:
+        return self._conn.execute(
+            "SELECT * FROM outcomes WHERE hypothesis_id = ?", (hypothesis_id,)
+        ).fetchone()
+
     def insert_settlement(
         self,
         tenant_id: str,
@@ -491,6 +496,42 @@ class Repository:
             """
         ).fetchone()
         return int(row["n"])
+
+    # -- Metrics support ------------------------------------------------------
+
+    def list_all_settlements(self, tenant_id: str) -> list[sqlite3.Row]:
+        return self._conn.execute(
+            "SELECT * FROM settlements WHERE tenant_id = ? ORDER BY id", (tenant_id,)
+        ).fetchall()
+
+    def event_ingestion_span_ms(self, tenant_id: str) -> tuple[int, int, int] | None:
+        """Return ``(count, earliest_ingested_at_ms, latest_ingested_at_ms)``
+        for ``tenant_id``, or ``None`` if no events are recorded yet."""
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*) AS n, MIN(ingested_at_ms) AS lo, MAX(ingested_at_ms) AS hi
+            FROM events WHERE tenant_id = ?
+            """,
+            (tenant_id,),
+        ).fetchone()
+        if row is None or row["n"] == 0:
+            return None
+        return int(row["n"]), int(row["lo"]), int(row["hi"])
+
+    def newest_event_ingested_at_ms(self, tenant_id: str) -> int | None:
+        row = self._conn.execute(
+            "SELECT MAX(ingested_at_ms) AS latest FROM events WHERE tenant_id = ?",
+            (tenant_id,),
+        ).fetchone()
+        return int(row["latest"]) if row and row["latest"] is not None else None
+
+    def newest_decision_ms(self, tenant_id: str, strategy: str) -> int | None:
+        row = self._conn.execute(
+            "SELECT MAX(decided_at_ms) AS latest FROM attention_decisions "
+            "WHERE tenant_id = ? AND strategy = ?",
+            (tenant_id, strategy),
+        ).fetchone()
+        return int(row["latest"]) if row and row["latest"] is not None else None
 
     # -- Epochs -----------------------------------------------------------
 

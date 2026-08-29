@@ -10,6 +10,7 @@ acknowledge.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 
 from stakeroute.config import STAKE_MAX, STAKE_MIN
@@ -40,6 +41,12 @@ async def consume_once(
     """
     applied = 0
     async for payload, ack in transport.subscribe(subject, durable_name):
+        # observed_at_ms is when the signal was originally emitted
+        # (simulated time, possibly spread across a wide window);
+        # ingested_at_ms is when THIS pipeline actually processed it —
+        # real wall-clock time. Conflating the two would make throughput
+        # measure the simulator's signal cadence instead of the pipeline's
+        # own processing rate (Performance Goals, plan.md).
         is_new = repo.insert_event(
             event_id=payload["event_id"],
             tenant_id=payload.get("tenant_id", tenant_id),
@@ -48,7 +55,7 @@ async def consume_once(
                 "source_event_id", payload["event_id"]
             ),
             observed_at_ms=payload.get("emitted_at_ms", 0),
-            ingested_at_ms=payload.get("emitted_at_ms", 0),
+            ingested_at_ms=int(time.time() * 1000),
             provenance=payload.get("payload", {}).get("provenance", {}),
             payload=payload.get("payload", {}),
         )
