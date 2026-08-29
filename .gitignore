@@ -23,3 +23,6 @@ venv/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+
+# Claude Code session-internal lock file (not project content)
+.claude/scheduled_tasks.lock

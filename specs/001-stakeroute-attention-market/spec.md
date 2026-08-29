@@ -137,10 +137,11 @@ Alongside the queue, the demo surface reports quantitative results: how often th
 - **FR-009**: System MUST hold staked credits as unavailable until the referenced hypothesis resolves or expires.
 - **FR-010**: System MUST start previously unknown agents at a low reputation rather than at parity with proven agents.
 - **FR-011**: Agent identity MUST be attested by the enterprise; the system MUST NOT assume it can defend against costless identity creation, and this trust boundary MUST be stated in user-facing documentation.
+- **FR-044**: System MUST authorize at most one live forecast per agent per hypothesis. A resubmission MUST replace the agent's prior forecast on that hypothesis, reconciling the stake difference against the agent's balance, rather than accumulating as an additional vote.
 
 #### Aggregation
 
-- **FR-012**: System MUST group forecasts into hypotheses, where a hypothesis carries a statement, a prior probability, an estimated impact, a deadline and a status.
+- **FR-012**: System MUST group forecasts into hypotheses, where a hypothesis carries a statement, a prior probability, an estimated impact, an urgency, a review cost, a deadline and a status.
 - **FR-013**: System MUST compute each forecast's influence weight from the agent's reputation, its staked amount, and an independence factor derived from the size of its evidence group.
 - **FR-014**: The influence of stake MUST be sub-linear, so that a single well-capitalized agent cannot buy proportionally unbounded influence.
 - **FR-015**: The independence factor MUST decrease as more forecasts share an evidence group, so that N correlated reports contribute materially less than N independent ones.
@@ -168,7 +169,7 @@ Alongside the queue, the demo surface reports quantitative results: how often th
 #### Demonstration surface
 
 - **FR-030**: System MUST present a single operator screen showing the ranked human-review queue, remaining attention budget, per-hypothesis probability, impact and independent-evidence count, and an agent table with reputation, stake, forecast and settlement state.
-- **FR-031**: System MUST provide on-demand controls to run the baseline scenario, inject a Sybil agent flood, inject correlated-evidence agents, terminate a processing component, and resolve an outcome.
+- **FR-031**: System MUST provide on-demand controls to run the baseline scenario, inject a Sybil agent flood, inject correlated-evidence agents, and resolve an outcome. Terminating a processing component is operator-executed out-of-band (e.g. `docker compose kill worker`), not a system-provided control — a kill switch the application offers itself is not a credible failure test.
 - **FR-032**: System MUST display the StakeRoute ranking against the baseline rankings simultaneously so divergence under attack is visible without narration.
 - **FR-033**: System MUST report precision at the review budget, false-escalation rate, time-to-attention, aggregate calibration score and events processed per second from recorded run data only.
 - **FR-034**: System MUST NOT display fabricated or hard-coded benchmark figures.
@@ -196,8 +197,8 @@ Alongside the queue, the demo surface reports quantitative results: how often th
 - **Tenant**: The isolation boundary for all data. Present on every record from the outset even though the demonstration uses a single tenant.
 - **Agent**: An autonomous participant with a reputation score, an available credit balance, an accuracy profile in simulation, and a settlement history.
 - **Signal / Event**: A normalized observation from a source, carrying provenance, timestamp, tenant and a deduplication identifier.
-- **Evidence Group**: A label identifying the underlying source of information a forecast relies on; the unit over which correlation is discounted.
-- **Hypothesis**: A candidate explanation under evaluation, with a statement, prior probability, estimated impact, urgency, deadline and status.
+- **Evidence Group**: A label identifying the underlying source of information a forecast relies on; the unit over which correlation is discounted. Named "evidence group" throughout this specification and in UI copy, for a non-technical audience; the same concept appears in code and the data model as `evidence_cluster` (e.g. `evidence_cluster_id`). One concept, two names by audience — stated once here rather than repeated at each occurrence.
+- **Hypothesis**: A candidate explanation under evaluation, with a statement, prior probability, estimated impact, urgency, review cost, deadline and status.
 - **Forecast**: An agent's staked probabilistic claim about a hypothesis, referencing its evidence and evidence group.
 - **Attention Decision**: The record of a ranking pass — hypothesis, aggregated probability, priority, rank and reason.
 - **Outcome**: Resolved ground truth for a hypothesis, with resolution time and source.
@@ -218,7 +219,7 @@ Alongside the queue, the demo surface reports quantitative results: how often th
 - **SC-008**: After outcome resolution, agents whose forecasts improved on the prior end with higher reputation and credits, and agents whose forecasts were worse than the prior end with lower reputation and credits, in every run of the demonstration scenario.
 - **SC-009**: No agent's credit loss on any single forecast exceeds the amount it staked.
 - **SC-010**: The full demonstration — baseline, attack, failure recovery and settlement — is completed within 5 minutes from a clean start.
-- **SC-011**: The system sustains the scenario's signal volume without the operator queue falling behind the event stream, with measured throughput displayed.
+- **SC-011**: The system sustains an ingest rate of at least 1,000 events/second, and the ranking pass never trails the newest ingested event by more than 500ms in the demonstration's in-process path, with both figures measured and displayed rather than asserted.
 - **SC-012**: All four ranking-quality metrics and the throughput metric are populated from recorded run data in every demonstration.
 
 ## Assumptions

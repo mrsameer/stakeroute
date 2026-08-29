@@ -12,8 +12,11 @@ import json
 import random
 import time
 from collections.abc import Iterable
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from stakeroute.config import ATTENTION_BUDGET, DB_PATH, DEFAULT_TENANT_ID, EPOCH_GRANT
@@ -56,6 +59,21 @@ _transport = MemoryTransport()
 # before a hypothesis actually resolves. Reset on every run_normal.
 _ground_truth: dict[str, int] = {}
 _run_id: str | None = None
+_ws_clients: set[WebSocket] = set()
+
+
+async def _broadcast_queue_updated() -> None:
+    """Push a lightweight "something changed" notice to every connected
+    WS client. The client repaints from GET /api/queue itself (contracts/
+    http-api.md) — the socket carries no state of its own, so a client
+    that reconnects after the worker was killed loses nothing."""
+    dead: set[WebSocket] = set()
+    for client in _ws_clients:
+        try:
+            await client.send_json({"type": "queue_updated"})
+        except Exception:
+            dead.add(client)
+    _ws_clients.difference_update(dead)
 
 
 def now_ms() -> int:
@@ -197,6 +215,7 @@ async def run_normal(request: RunNormalRequest) -> dict:
 
     results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
     await publish_hypothesis_updates(_transport, tenant_id, results, now)
+    await _broadcast_queue_updated()
     stakeroute_result = results["stakeroute"]
     routed = sum(1 for d in stakeroute_result.allocation.decisions if d.routed)
     return {
@@ -224,6 +243,7 @@ async def inject_sybils_endpoint(request: InjectSybilsRequest) -> dict:
     await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
     results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
     await publish_hypothesis_updates(_transport, tenant_id, results, now)
+    await _broadcast_queue_updated()
     return {"injected": request.count, "target": request.target}
 
 
@@ -248,6 +268,7 @@ async def inject_correlated_endpoint(request: InjectCorrelatedRequest) -> dict:
     await _ingest_forecasts(repo, _transport, tenant_id, forecasts, now)
     results = run_ranking_pass(repo, tenant_id, ATTENTION_BUDGET, now)
     await publish_hypothesis_updates(_transport, tenant_id, results, now)
+    await _broadcast_queue_updated()
     return {
         "injected": request.count,
         "cluster": request.cluster,
@@ -376,6 +397,7 @@ async def resolve(request: ResolveRequest) -> dict:
         tenant_id,
         handle_outcome_resolved,
     )
+    await _broadcast_queue_updated()
     return {"hypothesis_id": request.hypothesis_id, "outcome": request.outcome}
 
 
@@ -437,3 +459,34 @@ def metrics() -> dict:
         },
         "run_id": _run_id,
     }
+
+
+@app.websocket("/api/live")
+async def live(websocket: WebSocket) -> None:
+    """Server-push updates. Payloads mirror ``hypotheses.updated``.
+
+    The socket itself carries no state — a client that reconnects after
+    the worker was killed loses nothing, because it repaints from
+    GET /api/queue on connect and on every subsequent push (contracts/
+    http-api.md; T080 implements the client side of this).
+    """
+    await websocket.accept()
+    _ws_clients.add(websocket)
+    try:
+        while True:
+            # We never expect the client to send anything; this just
+            # blocks until the socket closes, so we notice disconnects.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _ws_clients.discard(websocket)
+
+
+_STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse(_STATIC_DIR / "index.html")

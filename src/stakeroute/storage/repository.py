@@ -8,39 +8,101 @@ never the other way round.
 
 from __future__ import annotations
 
+import functools
 import json
+import os
 import sqlite3
+import threading
+import time
 from pathlib import Path
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+# WAL is the default: concurrent readers don't block on a writer, which is
+# what the idempotency argument in contracts/events.md leans on. It relies
+# on an mmap'd shared-memory (-shm) file for its locking coordination,
+# which some virtualized/networked volume backends handle unreliably
+# across separate containers. STAKEROUTE_SQLITE_JOURNAL_MODE=DELETE falls
+# back to SQLite's classic rollback-journal locking (readers block briefly
+# during a write, but the lock protocol itself is the most portable one
+# SQLite has) — set it in docker-compose.yml if WAL misbehaves there.
+_JOURNAL_MODE = os.environ.get("STAKEROUTE_SQLITE_JOURNAL_MODE", "WAL")
+
+
+def _retrying(method):
+    """Retry a Repository method on ``sqlite3.OperationalError: database
+    is locked``.
+
+    ``PRAGMA busy_timeout`` covers a connection waiting on a lock held
+    *within* SQLite's own retry loop, but three separate processes
+    (worker, dashboard, simulator — D-008) each opening a fresh connection
+    and writing within milliseconds of each other — most visibly at
+    container startup, when all three bootstrap the schema and seed their
+    first rows at once — can still collide before that loop ever starts.
+    This is operational hardening for that race, not a claim that
+    concurrent writers scale; the sustained multi-writer limitation is
+    already documented at D-004.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: Repository, *args, **kwargs):
+        attempts = 60
+        base_delay = 0.2
+        max_delay = 1.0
+        for attempt in range(attempts):
+            try:
+                return method(self, *args, **kwargs)
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc).lower() or attempt == attempts - 1:
+                    raise
+                time.sleep(min(base_delay * (attempt + 1), max_delay))
+        raise AssertionError("unreachable")
+
+    return wrapper
+
 
 class Repository:
-    """A transactional handle onto the StakeRoute SQLite store."""
+    """A transactional handle onto the StakeRoute SQLite store.
+
+    A single ``sqlite3.Connection`` is not safe for *simultaneous* use from
+    more than one thread — ``check_same_thread=False`` only lifts sqlite3's
+    same-thread assertion, it does not serialize access. FastAPI runs sync
+    endpoints in a threadpool, so two requests (e.g. the dashboard's own
+    ``Promise.all`` of four GETs) can legitimately call Repository methods
+    at the same instant. Every public method below therefore holds
+    ``self._lock`` for its full body, including any read-then-write
+    sequence (e.g. ``upsert_forecast``'s delete-then-insert) that must
+    itself be atomic against a concurrent caller. ``@_retrying`` adds the
+    second layer: retry on a lock held by a *different process* sharing
+    the same file (worker/dashboard/simulator, D-008).
+    """
 
     def __init__(self, db_path: str) -> None:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        # check_same_thread=False: FastAPI runs sync endpoints in a
-        # threadpool while async endpoints run on the event loop thread, so
-        # the one shared Repository connection is legitimately used from
-        # more than one thread. Access is still effectively serialized —
-        # nothing here issues concurrent writes from separate threads.
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute(f"PRAGMA journal_mode={_JOURNAL_MODE}")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        # busy_timeout makes SQLite retry for up to 5s instead of raising
+        # immediately when a lock is already held.
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._bootstrap_schema()
 
+    @_retrying
     def _bootstrap_schema(self) -> None:
-        schema = _SCHEMA_PATH.read_text()
-        self._conn.executescript(schema)
-        self._conn.commit()
+        with self._lock:
+            schema = _SCHEMA_PATH.read_text()
+            self._conn.executescript(schema)
+            self._conn.commit()
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     # -- Idempotency boundary ------------------------------------------------
 
+    @_retrying
     def insert_event(
         self,
         event_id: str,
@@ -58,44 +120,51 @@ class Repository:
         applied), ``False`` if the event was already recorded (skip the
         effect — this is what makes redelivery safe, FR-003).
         """
-        cursor = self._conn.execute(
-            """
-            INSERT INTO events (
-                event_id, tenant_id, source, source_event_id,
-                observed_at_ms, ingested_at_ms, provenance, payload
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (event_id) DO NOTHING
-            """,
-            (
-                event_id,
-                tenant_id,
-                source,
-                source_event_id,
-                observed_at_ms,
-                ingested_at_ms,
-                json.dumps(provenance),
-                json.dumps(payload),
-            ),
-        )
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO events (
+                    event_id, tenant_id, source, source_event_id,
+                    observed_at_ms, ingested_at_ms, provenance, payload
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (event_id) DO NOTHING
+                """,
+                (
+                    event_id,
+                    tenant_id,
+                    source,
+                    source_event_id,
+                    observed_at_ms,
+                    ingested_at_ms,
+                    json.dumps(provenance),
+                    json.dumps(payload),
+                ),
+            )
+            return cursor.rowcount > 0
 
+    @_retrying
     def commit(self) -> None:
-        self._conn.commit()
+        with self._lock:
+            self._conn.commit()
 
     def rollback(self) -> None:
-        self._conn.rollback()
+        with self._lock:
+            self._conn.rollback()
 
     # -- Tenants --------------------------------------------------------------
 
+    @_retrying
     def ensure_tenant(self, tenant_id: str, name: str, created_at_ms: int) -> None:
-        self._conn.execute(
-            "INSERT INTO tenants (id, name, created_at_ms) VALUES (?, ?, ?) "
-            "ON CONFLICT (id) DO NOTHING",
-            (tenant_id, name, created_at_ms),
-        )
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO tenants (id, name, created_at_ms) VALUES (?, ?, ?) "
+                "ON CONFLICT (id) DO NOTHING",
+                (tenant_id, name, created_at_ms),
+            )
 
     # -- Agents -----------------------------------------------------------
 
+    @_retrying
     def upsert_agent(
         self,
         agent_id: str,
@@ -107,73 +176,85 @@ class Repository:
         attested: bool,
         created_at_ms: int,
     ) -> None:
-        self._conn.execute(
-            """
-            INSERT INTO agents (
-                id, tenant_id, display_name, reputation, available_credits,
-                staked_credits, attested, created_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-                reputation = excluded.reputation,
-                available_credits = excluded.available_credits,
-                staked_credits = excluded.staked_credits
-            """,
-            (
-                agent_id,
-                tenant_id,
-                display_name,
-                reputation,
-                available_credits,
-                staked_credits,
-                int(attested),
-                created_at_ms,
-            ),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO agents (
+                    id, tenant_id, display_name, reputation, available_credits,
+                    staked_credits, attested, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    reputation = excluded.reputation,
+                    available_credits = excluded.available_credits,
+                    staked_credits = excluded.staked_credits
+                """,
+                (
+                    agent_id,
+                    tenant_id,
+                    display_name,
+                    reputation,
+                    available_credits,
+                    staked_credits,
+                    int(attested),
+                    created_at_ms,
+                ),
+            )
 
+    @_retrying
     def get_agent(self, agent_id: str) -> sqlite3.Row | None:
-        return self._conn.execute(
-            "SELECT * FROM agents WHERE id = ?", (agent_id,)
-        ).fetchone()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM agents WHERE id = ?", (agent_id,)
+            ).fetchone()
 
+    @_retrying
     def list_agents(self, tenant_id: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            "SELECT * FROM agents WHERE tenant_id = ? ORDER BY id", (tenant_id,)
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM agents WHERE tenant_id = ? ORDER BY id", (tenant_id,)
+            ).fetchall()
 
+    @_retrying
     def adjust_agent_credits(
         self, agent_id: str, available_delta: int, staked_delta: int
     ) -> None:
-        self._conn.execute(
-            """
-            UPDATE agents
-            SET available_credits = available_credits + ?,
-                staked_credits = staked_credits + ?
-            WHERE id = ?
-            """,
-            (available_delta, staked_delta, agent_id),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE agents
+                SET available_credits = available_credits + ?,
+                    staked_credits = staked_credits + ?
+                WHERE id = ?
+                """,
+                (available_delta, staked_delta, agent_id),
+            )
 
+    @_retrying
     def set_agent_reputation(self, agent_id: str, reputation: float) -> None:
-        self._conn.execute(
-            "UPDATE agents SET reputation = ? WHERE id = ?", (reputation, agent_id)
-        )
+        with self._lock:
+            self._conn.execute(
+                "UPDATE agents SET reputation = ? WHERE id = ?", (reputation, agent_id)
+            )
 
     # -- Evidence clusters --------------------------------------------------
 
+    @_retrying
     def ensure_evidence_cluster(
         self, cluster_id: str, tenant_id: str, label: str
     ) -> None:
-        self._conn.execute(
-            """
-            INSERT INTO evidence_clusters (id, tenant_id, label, member_count)
-            VALUES (?, ?, ?, 0)
-            ON CONFLICT (id) DO NOTHING
-            """,
-            (cluster_id, tenant_id, label),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO evidence_clusters (id, tenant_id, label, member_count)
+                VALUES (?, ?, ?, 0)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (cluster_id, tenant_id, label),
+            )
 
     # -- Hypotheses -----------------------------------------------------------
 
+    @_retrying
     def upsert_hypothesis(
         self,
         hypothesis_id: str,
@@ -187,63 +268,74 @@ class Repository:
         status: str,
         created_at_ms: int,
     ) -> None:
-        self._conn.execute(
-            """
-            INSERT INTO hypotheses (
-                id, tenant_id, statement, prior_probability, impact_minor_units,
-                urgency, review_cost, deadline_ms, status, created_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO NOTHING
-            """,
-            (
-                hypothesis_id,
-                tenant_id,
-                statement,
-                prior_probability,
-                impact_minor_units,
-                urgency,
-                review_cost,
-                deadline_ms,
-                status,
-                created_at_ms,
-            ),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO hypotheses (
+                    id, tenant_id, statement, prior_probability, impact_minor_units,
+                    urgency, review_cost, deadline_ms, status, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    hypothesis_id,
+                    tenant_id,
+                    statement,
+                    prior_probability,
+                    impact_minor_units,
+                    urgency,
+                    review_cost,
+                    deadline_ms,
+                    status,
+                    created_at_ms,
+                ),
+            )
 
+    @_retrying
     def set_hypothesis_status(self, hypothesis_id: str, status: str) -> None:
-        self._conn.execute(
-            "UPDATE hypotheses SET status = ? WHERE id = ?", (status, hypothesis_id)
-        )
+        with self._lock:
+            self._conn.execute(
+                "UPDATE hypotheses SET status = ? WHERE id = ?", (status, hypothesis_id)
+            )
 
+    @_retrying
     def get_hypothesis(self, hypothesis_id: str) -> sqlite3.Row | None:
-        return self._conn.execute(
-            "SELECT * FROM hypotheses WHERE id = ?", (hypothesis_id,)
-        ).fetchone()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM hypotheses WHERE id = ?", (hypothesis_id,)
+            ).fetchone()
 
+    @_retrying
     def list_hypotheses(
         self, tenant_id: str, status: str | None = None
     ) -> list[sqlite3.Row]:
-        if status is None:
+        with self._lock:
+            if status is None:
+                return self._conn.execute(
+                    "SELECT * FROM hypotheses WHERE tenant_id = ? ORDER BY id",
+                    (tenant_id,),
+                ).fetchall()
             return self._conn.execute(
-                "SELECT * FROM hypotheses WHERE tenant_id = ? ORDER BY id",
-                (tenant_id,),
+                "SELECT * FROM hypotheses WHERE tenant_id = ? AND status = ? "
+                "ORDER BY id",
+                (tenant_id, status),
             ).fetchall()
-        return self._conn.execute(
-            "SELECT * FROM hypotheses WHERE tenant_id = ? AND status = ? ORDER BY id",
-            (tenant_id, status),
-        ).fetchall()
 
+    @_retrying
     def list_expired_hypotheses(self, tenant_id: str, now_ms: int) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            """
-            SELECT * FROM hypotheses
-            WHERE tenant_id = ? AND status = 'open' AND deadline_ms < ?
-            ORDER BY id
-            """,
-            (tenant_id, now_ms),
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                """
+                SELECT * FROM hypotheses
+                WHERE tenant_id = ? AND status = 'open' AND deadline_ms < ?
+                ORDER BY id
+                """,
+                (tenant_id, now_ms),
+            ).fetchall()
 
     # -- Forecasts --------------------------------------------------------
 
+    @_retrying
     def get_live_forecast(
         self, hypothesis_id: str, agent_id: str
     ) -> sqlite3.Row | None:
@@ -254,11 +346,13 @@ class Repository:
         forecast at the same stake must not be rejected just because the
         original charge already left the balance low.
         """
-        return self._conn.execute(
-            "SELECT * FROM forecasts WHERE hypothesis_id = ? AND agent_id = ?",
-            (hypothesis_id, agent_id),
-        ).fetchone()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM forecasts WHERE hypothesis_id = ? AND agent_id = ?",
+                (hypothesis_id, agent_id),
+            ).fetchone()
 
+    @_retrying
     def upsert_forecast(
         self,
         forecast_id: str,
@@ -280,57 +374,72 @@ class Repository:
         previous forecast's id and stake tuple-encoded as a string ("id:stake")
         if one existed, else ``None`` — the caller uses this to reconcile the
         stake difference against the agent's balance.
+
+        The lookup, delete and insert below run under one lock acquisition
+        so a concurrent caller can never observe (or race) a half-replaced
+        forecast.
         """
-        existing = self._conn.execute(
-            "SELECT id, stake FROM forecasts WHERE hypothesis_id = ? AND agent_id = ?",
-            (hypothesis_id, agent_id),
-        ).fetchone()
-        if existing is not None:
-            self._conn.execute("DELETE FROM forecasts WHERE id = ?", (existing["id"],))
-        self._conn.execute(
-            """
-            INSERT INTO forecasts (
-                id, tenant_id, hypothesis_id, agent_id, probability, stake,
-                evidence_cluster_id, evidence_refs, source_event_id,
-                created_at_ms, expires_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                forecast_id,
-                tenant_id,
-                hypothesis_id,
-                agent_id,
-                probability,
-                stake,
-                evidence_cluster_id,
-                json.dumps(evidence_refs),
-                source_event_id,
-                created_at_ms,
-                expires_at_ms,
-            ),
-        )
-        if existing is not None:
-            return f"{existing['id']}:{existing['stake']}"
-        return None
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT id, stake FROM forecasts "
+                "WHERE hypothesis_id = ? AND agent_id = ?",
+                (hypothesis_id, agent_id),
+            ).fetchone()
+            if existing is not None:
+                self._conn.execute(
+                    "DELETE FROM forecasts WHERE id = ?", (existing["id"],)
+                )
+            self._conn.execute(
+                """
+                INSERT INTO forecasts (
+                    id, tenant_id, hypothesis_id, agent_id, probability, stake,
+                    evidence_cluster_id, evidence_refs, source_event_id,
+                    created_at_ms, expires_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    forecast_id,
+                    tenant_id,
+                    hypothesis_id,
+                    agent_id,
+                    probability,
+                    stake,
+                    evidence_cluster_id,
+                    json.dumps(evidence_refs),
+                    source_event_id,
+                    created_at_ms,
+                    expires_at_ms,
+                ),
+            )
+            if existing is not None:
+                return f"{existing['id']}:{existing['stake']}"
+            return None
 
+    @_retrying
     def list_forecasts_for_hypothesis(self, hypothesis_id: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            "SELECT * FROM forecasts WHERE hypothesis_id = ? ORDER BY agent_id",
-            (hypothesis_id,),
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM forecasts WHERE hypothesis_id = ? ORDER BY agent_id",
+                (hypothesis_id,),
+            ).fetchall()
 
+    @_retrying
     def get_forecast(self, forecast_id: str) -> sqlite3.Row | None:
-        return self._conn.execute(
-            "SELECT * FROM forecasts WHERE id = ?", (forecast_id,)
-        ).fetchone()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM forecasts WHERE id = ?", (forecast_id,)
+            ).fetchone()
 
+    @_retrying
     def delete_forecasts_for_hypothesis(self, hypothesis_id: str) -> None:
-        self._conn.execute(
-            "DELETE FROM forecasts WHERE hypothesis_id = ?", (hypothesis_id,)
-        )
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM forecasts WHERE hypothesis_id = ?", (hypothesis_id,)
+            )
 
     # -- Attention decisions --------------------------------------------------
 
+    @_retrying
     def insert_attention_decision(
         self,
         tenant_id: str,
@@ -344,53 +453,59 @@ class Repository:
         contributions: list[dict],
         decided_at_ms: int,
     ) -> None:
-        self._conn.execute(
-            """
-            INSERT INTO attention_decisions (
-                tenant_id, hypothesis_id, strategy, aggregated_probability,
-                priority, rank, routed, reason, contributions, decided_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                tenant_id,
-                hypothesis_id,
-                strategy,
-                aggregated_probability,
-                priority,
-                rank,
-                int(routed),
-                reason,
-                json.dumps(contributions),
-                decided_at_ms,
-            ),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO attention_decisions (
+                    tenant_id, hypothesis_id, strategy, aggregated_probability,
+                    priority, rank, routed, reason, contributions, decided_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tenant_id,
+                    hypothesis_id,
+                    strategy,
+                    aggregated_probability,
+                    priority,
+                    rank,
+                    int(routed),
+                    reason,
+                    json.dumps(contributions),
+                    decided_at_ms,
+                ),
+            )
 
+    @_retrying
     def latest_decisions(self, tenant_id: str, strategy: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            """
-            SELECT ad.* FROM attention_decisions ad
-            INNER JOIN (
-                SELECT hypothesis_id, MAX(decided_at_ms) AS max_ms
-                FROM attention_decisions
-                WHERE tenant_id = ? AND strategy = ?
-                GROUP BY hypothesis_id
-            ) latest
-            ON ad.hypothesis_id = latest.hypothesis_id
-            AND ad.decided_at_ms = latest.max_ms
-            WHERE ad.tenant_id = ? AND ad.strategy = ?
-            ORDER BY ad.rank
-            """,
-            (tenant_id, strategy, tenant_id, strategy),
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                """
+                SELECT ad.* FROM attention_decisions ad
+                INNER JOIN (
+                    SELECT hypothesis_id, MAX(decided_at_ms) AS max_ms
+                    FROM attention_decisions
+                    WHERE tenant_id = ? AND strategy = ?
+                    GROUP BY hypothesis_id
+                ) latest
+                ON ad.hypothesis_id = latest.hypothesis_id
+                AND ad.decided_at_ms = latest.max_ms
+                WHERE ad.tenant_id = ? AND ad.strategy = ?
+                ORDER BY ad.rank
+                """,
+                (tenant_id, strategy, tenant_id, strategy),
+            ).fetchall()
 
+    @_retrying
     def count_events(self, tenant_id: str) -> int:
-        row = self._conn.execute(
-            "SELECT COUNT(*) AS n FROM events WHERE tenant_id = ?", (tenant_id,)
-        ).fetchone()
-        return int(row["n"])
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM events WHERE tenant_id = ?", (tenant_id,)
+            ).fetchone()
+            return int(row["n"])
 
     # -- Outcomes and settlements ---------------------------------------------
 
+    @_retrying
     def insert_outcome(
         self,
         hypothesis_id: str,
@@ -399,22 +514,26 @@ class Repository:
         resolved_at_ms: int,
         resolved_by: str,
     ) -> bool:
-        cursor = self._conn.execute(
-            """
-            INSERT INTO outcomes (
-                hypothesis_id, tenant_id, outcome, resolved_at_ms, resolved_by
-            ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (hypothesis_id) DO NOTHING
-            """,
-            (hypothesis_id, tenant_id, outcome, resolved_at_ms, resolved_by),
-        )
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO outcomes (
+                    hypothesis_id, tenant_id, outcome, resolved_at_ms, resolved_by
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (hypothesis_id) DO NOTHING
+                """,
+                (hypothesis_id, tenant_id, outcome, resolved_at_ms, resolved_by),
+            )
+            return cursor.rowcount > 0
 
+    @_retrying
     def get_outcome(self, hypothesis_id: str) -> sqlite3.Row | None:
-        return self._conn.execute(
-            "SELECT * FROM outcomes WHERE hypothesis_id = ?", (hypothesis_id,)
-        ).fetchone()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM outcomes WHERE hypothesis_id = ?", (hypothesis_id,)
+            ).fetchone()
 
+    @_retrying
     def insert_settlement(
         self,
         tenant_id: str,
@@ -432,109 +551,129 @@ class Repository:
         Returns ``True`` if this was a new row — the second half of the
         idempotency guarantee alongside ``insert_event`` (FR-003, SC-005).
         """
-        cursor = self._conn.execute(
-            """
-            INSERT INTO settlements (
-                tenant_id, forecast_id, brier_score, prior_brier_score,
-                improvement, credit_delta, reputation_before, reputation_after,
-                settled_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (forecast_id) DO NOTHING
-            """,
-            (
-                tenant_id,
-                forecast_id,
-                brier_score,
-                prior_brier_score,
-                improvement,
-                credit_delta,
-                reputation_before,
-                reputation_after,
-                settled_at_ms,
-            ),
-        )
-        return cursor.rowcount > 0
-
-    def list_settlements_for_hypothesis(self, hypothesis_id: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            """
-            SELECT s.* FROM settlements s
-            INNER JOIN forecasts f ON f.id = s.forecast_id
-            WHERE f.hypothesis_id = ?
-            ORDER BY s.forecast_id
-            """,
-            (hypothesis_id,),
-        ).fetchall()
-
-    def get_last_forecast_probability(self, agent_id: str) -> float | None:
-        row = self._conn.execute(
-            "SELECT probability FROM forecasts WHERE agent_id = ? "
-            "ORDER BY created_at_ms DESC LIMIT 1",
-            (agent_id,),
-        ).fetchone()
-        return row["probability"] if row else None
-
-    def get_last_settlement_delta(self, agent_id: str) -> int | None:
-        row = self._conn.execute(
-            """
-            SELECT s.credit_delta FROM settlements s
-            INNER JOIN forecasts f ON f.id = s.forecast_id
-            WHERE f.agent_id = ?
-            ORDER BY s.settled_at_ms DESC LIMIT 1
-            """,
-            (agent_id,),
-        ).fetchone()
-        return row["credit_delta"] if row else None
-
-    def duplicate_settlement_count(self) -> int:
-        row = self._conn.execute(
-            """
-            SELECT COUNT(*) AS n FROM (
-                SELECT forecast_id FROM settlements
-                GROUP BY forecast_id HAVING COUNT(*) > 1
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO settlements (
+                    tenant_id, forecast_id, brier_score, prior_brier_score,
+                    improvement, credit_delta, reputation_before, reputation_after,
+                    settled_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (forecast_id) DO NOTHING
+                """,
+                (
+                    tenant_id,
+                    forecast_id,
+                    brier_score,
+                    prior_brier_score,
+                    improvement,
+                    credit_delta,
+                    reputation_before,
+                    reputation_after,
+                    settled_at_ms,
+                ),
             )
-            """
-        ).fetchone()
-        return int(row["n"])
+            return cursor.rowcount > 0
+
+    @_retrying
+    def list_settlements_for_hypothesis(self, hypothesis_id: str) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._conn.execute(
+                """
+                SELECT s.* FROM settlements s
+                INNER JOIN forecasts f ON f.id = s.forecast_id
+                WHERE f.hypothesis_id = ?
+                ORDER BY s.forecast_id
+                """,
+                (hypothesis_id,),
+            ).fetchall()
+
+    @_retrying
+    def get_last_forecast_probability(self, agent_id: str) -> float | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT probability FROM forecasts WHERE agent_id = ? "
+                "ORDER BY created_at_ms DESC LIMIT 1",
+                (agent_id,),
+            ).fetchone()
+            return row["probability"] if row else None
+
+    @_retrying
+    def get_last_settlement_delta(self, agent_id: str) -> int | None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT s.credit_delta FROM settlements s
+                INNER JOIN forecasts f ON f.id = s.forecast_id
+                WHERE f.agent_id = ?
+                ORDER BY s.settled_at_ms DESC LIMIT 1
+                """,
+                (agent_id,),
+            ).fetchone()
+            return row["credit_delta"] if row else None
+
+    @_retrying
+    def duplicate_settlement_count(self) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT COUNT(*) AS n FROM (
+                    SELECT forecast_id FROM settlements
+                    GROUP BY forecast_id HAVING COUNT(*) > 1
+                )
+                """
+            ).fetchone()
+            return int(row["n"])
 
     # -- Metrics support ------------------------------------------------------
 
+    @_retrying
     def list_all_settlements(self, tenant_id: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            "SELECT * FROM settlements WHERE tenant_id = ? ORDER BY id", (tenant_id,)
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM settlements WHERE tenant_id = ? ORDER BY id",
+                (tenant_id,),
+            ).fetchall()
 
+    @_retrying
     def event_ingestion_span_ms(self, tenant_id: str) -> tuple[int, int, int] | None:
         """Return ``(count, earliest_ingested_at_ms, latest_ingested_at_ms)``
         for ``tenant_id``, or ``None`` if no events are recorded yet."""
-        row = self._conn.execute(
-            """
-            SELECT COUNT(*) AS n, MIN(ingested_at_ms) AS lo, MAX(ingested_at_ms) AS hi
-            FROM events WHERE tenant_id = ?
-            """,
-            (tenant_id,),
-        ).fetchone()
-        if row is None or row["n"] == 0:
-            return None
-        return int(row["n"]), int(row["lo"]), int(row["hi"])
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT COUNT(*) AS n, MIN(ingested_at_ms) AS lo,
+                       MAX(ingested_at_ms) AS hi
+                FROM events WHERE tenant_id = ?
+                """,
+                (tenant_id,),
+            ).fetchone()
+            if row is None or row["n"] == 0:
+                return None
+            return int(row["n"]), int(row["lo"]), int(row["hi"])
 
+    @_retrying
     def newest_event_ingested_at_ms(self, tenant_id: str) -> int | None:
-        row = self._conn.execute(
-            "SELECT MAX(ingested_at_ms) AS latest FROM events WHERE tenant_id = ?",
-            (tenant_id,),
-        ).fetchone()
-        return int(row["latest"]) if row and row["latest"] is not None else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(ingested_at_ms) AS latest FROM events WHERE tenant_id = ?",
+                (tenant_id,),
+            ).fetchone()
+            return int(row["latest"]) if row and row["latest"] is not None else None
 
+    @_retrying
     def newest_decision_ms(self, tenant_id: str, strategy: str) -> int | None:
-        row = self._conn.execute(
-            "SELECT MAX(decided_at_ms) AS latest FROM attention_decisions "
-            "WHERE tenant_id = ? AND strategy = ?",
-            (tenant_id, strategy),
-        ).fetchone()
-        return int(row["latest"]) if row and row["latest"] is not None else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(decided_at_ms) AS latest FROM attention_decisions "
+                "WHERE tenant_id = ? AND strategy = ?",
+                (tenant_id, strategy),
+            ).fetchone()
+            return int(row["latest"]) if row and row["latest"] is not None else None
 
     # -- Epochs -----------------------------------------------------------
 
+    @_retrying
     def insert_epoch(
         self,
         tenant_id: str,
@@ -542,41 +681,47 @@ class Repository:
         grant_per_agent: int,
         seed: int,
     ) -> int:
-        cursor = self._conn.execute(
-            """
-            INSERT INTO epochs (tenant_id, started_at_ms, grant_per_agent, seed)
-            VALUES (?, ?, ?, ?)
-            """,
-            (tenant_id, started_at_ms, grant_per_agent, seed),
-        )
-        assert cursor.lastrowid is not None
-        return cursor.lastrowid
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO epochs (tenant_id, started_at_ms, grant_per_agent, seed)
+                VALUES (?, ?, ?, ?)
+                """,
+                (tenant_id, started_at_ms, grant_per_agent, seed),
+            )
+            assert cursor.lastrowid is not None
+            return cursor.lastrowid
 
     # -- Reset (demo scenario control) ---------------------------------------
 
+    @_retrying
     def reset_tenant(self, tenant_id: str) -> None:
         """Clear every tenant-scoped row so a scenario can restart clean.
 
         Used by ``POST /api/scenario/run_normal`` — the tenant row itself
         and the schema are untouched.
         """
-        for table in (
-            "settlements",
-            "outcomes",
-            "attention_decisions",
-            "rejected_forecasts",
-            "forecasts",
-            "hypotheses",
-            "evidence_clusters",
-            "agents",
-            "events",
-            "epochs",
-        ):
-            self._conn.execute(f"DELETE FROM {table} WHERE tenant_id = ?", (tenant_id,))
-        self._conn.commit()
+        with self._lock:
+            for table in (
+                "settlements",
+                "outcomes",
+                "attention_decisions",
+                "rejected_forecasts",
+                "forecasts",
+                "hypotheses",
+                "evidence_clusters",
+                "agents",
+                "events",
+                "epochs",
+            ):
+                self._conn.execute(
+                    f"DELETE FROM {table} WHERE tenant_id = ?", (tenant_id,)
+                )
+            self._conn.commit()
 
     # -- Rejected forecasts (FR-008) -----------------------------------------
 
+    @_retrying
     def insert_rejected_forecast(
         self,
         tenant_id: str,
@@ -593,26 +738,29 @@ class Repository:
         — the operator (and the adversarial test suite) must be able to see
         that a submission was refused and why.
         """
-        self._conn.execute(
-            """
-            INSERT INTO rejected_forecasts (
-                tenant_id, hypothesis_id, agent_id, stake, probability,
-                reason, rejected_at_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                tenant_id,
-                hypothesis_id,
-                agent_id,
-                stake,
-                probability,
-                reason,
-                rejected_at_ms,
-            ),
-        )
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO rejected_forecasts (
+                    tenant_id, hypothesis_id, agent_id, stake, probability,
+                    reason, rejected_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tenant_id,
+                    hypothesis_id,
+                    agent_id,
+                    stake,
+                    probability,
+                    reason,
+                    rejected_at_ms,
+                ),
+            )
 
+    @_retrying
     def list_rejected_forecasts(self, tenant_id: str) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            "SELECT * FROM rejected_forecasts WHERE tenant_id = ? ORDER BY id",
-            (tenant_id,),
-        ).fetchall()
+        with self._lock:
+            return self._conn.execute(
+                "SELECT * FROM rejected_forecasts WHERE tenant_id = ? ORDER BY id",
+                (tenant_id,),
+            ).fetchall()

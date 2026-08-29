@@ -1,0 +1,55 @@
+# StakeRoute full-stack demo (Phase 7, D-008). Three application
+# processes plus the NATS JetStream broker.
+#
+#   docker compose up --build          # bring up the full stack
+#   docker compose kill worker         # the failure-recovery demo (SC-005)
+#   docker compose start worker        # recovery
+#
+# Dashboard: http://localhost:8000
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  worker:
+    build: .
+    command: ["python", "-m", "stakeroute.worker.run_worker"]
+    depends_on:
+      nats:
+        condition: service_healthy
+    volumes:
+      - stakeroute-data:/data
+    restart: unless-stopped
+
+  simulator:
+    build: .
+    command: ["python", "-m", "stakeroute.simulator.run_simulator"]
+    depends_on:
+      nats:
+        condition: service_healthy
+    volumes:
+      - stakeroute-data:/data
+    environment:
+      - SCENARIO_SEED=42
+
+  dashboard:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+    volumes:
+      - stakeroute-data:/data
+
+volumes:
+  stakeroute-data:

@@ -1,0 +1,121 @@
+<svg viewBox="0 0 1160 620" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5568"/>
+    </marker>
+  </defs>
+
+  <rect width="1160" height="620" fill="#0f1115"/>
+  <text x="30" y="34" fill="#e6e9ef" font-size="20" font-weight="600">StakeRoute — Architecture</text>
+  <text x="30" y="54" fill="#8a92a3" font-size="12">Ingest -&gt; durable stream -&gt; blackboard -&gt; agents -&gt; attention market -&gt; allocator -&gt; human queue -&gt; settlement</text>
+
+  <!-- Simulator -->
+  <g>
+    <rect x="30" y="100" width="150" height="70" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="105" y="128" fill="#e6e9ef" font-size="13" text-anchor="middle">Simulator</text>
+    <text x="105" y="146" fill="#8a92a3" font-size="10" text-anchor="middle">signals + forecasts</text>
+    <text x="105" y="160" fill="#8a92a3" font-size="10" text-anchor="middle">(seeded, reproducible)</text>
+  </g>
+
+  <!-- NATS JetStream -->
+  <g>
+    <rect x="240" y="100" width="180" height="70" rx="8" fill="#161a22" stroke="#4f8cff"/>
+    <text x="330" y="122" fill="#e6e9ef" font-size="13" text-anchor="middle">NATS JetStream</text>
+    <text x="330" y="140" fill="#8a92a3" font-size="10" text-anchor="middle">signals.raw / forecasts.created</text>
+    <text x="330" y="153" fill="#8a92a3" font-size="10" text-anchor="middle">hypotheses.updated / outcomes.resolved</text>
+    <text x="330" y="166" fill="#8a92a3" font-size="10" text-anchor="middle">durable, at-least-once, 30s ack wait</text>
+  </g>
+
+  <!-- Worker -->
+  <g>
+    <rect x="480" y="90" width="200" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="580" y="112" fill="#e6e9ef" font-size="13" text-anchor="middle">Worker</text>
+    <text x="580" y="130" fill="#8a92a3" font-size="10" text-anchor="middle">receive -&gt; BEGIN -&gt; insert event</text>
+    <text x="580" y="143" fill="#8a92a3" font-size="10" text-anchor="middle">(ignore on conflict) -&gt; apply effect</text>
+    <text x="580" y="156" fill="#8a92a3" font-size="10" text-anchor="middle">-&gt; COMMIT -&gt; ACK</text>
+    <text x="580" y="171" fill="#e5c07b" font-size="10" text-anchor="middle">Principle III: exactly-once economics</text>
+  </g>
+
+  <!-- Blackboard / storage -->
+  <g>
+    <rect x="740" y="90" width="200" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="840" y="112" fill="#e6e9ef" font-size="13" text-anchor="middle">Blackboard (SQLite)</text>
+    <text x="840" y="130" fill="#8a92a3" font-size="10" text-anchor="middle">events · agents · hypotheses</text>
+    <text x="840" y="143" fill="#8a92a3" font-size="10" text-anchor="middle">forecasts · attention_decisions</text>
+    <text x="840" y="156" fill="#8a92a3" font-size="10" text-anchor="middle">outcomes · settlements</text>
+    <text x="840" y="171" fill="#8a92a3" font-size="10" text-anchor="middle">UNIQUE(event_id), UNIQUE(forecast_id)</text>
+  </g>
+
+  <!-- arrows row 1 -->
+  <line x1="180" y1="135" x2="238" y2="135" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="420" y1="135" x2="478" y2="135" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="680" y1="135" x2="738" y2="135" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Agents (below worker) -->
+  <g>
+    <rect x="440" y="250" width="280" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="580" y="272" fill="#e6e9ef" font-size="13" text-anchor="middle">Agents (staked forecasts)</text>
+    <text x="580" y="292" fill="#8a92a3" font-size="10" text-anchor="middle">payment · security · general · noisy</text>
+    <text x="580" y="305" fill="#8a92a3" font-size="10" text-anchor="middle">malicious (inverted) · new (low reputation)</text>
+    <text x="580" y="320" fill="#8a92a3" font-size="10" text-anchor="middle">probability + stake + evidence cluster</text>
+    <text x="580" y="333" fill="#e5c07b" font-size="10" text-anchor="middle">Principle I: no model on the decision path</text>
+  </g>
+  <line x1="580" y1="180" x2="580" y2="248" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Attention market -->
+  <g>
+    <rect x="440" y="390" width="280" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="580" y="412" fill="#e6e9ef" font-size="13" text-anchor="middle">Attention Market</text>
+    <text x="580" y="432" fill="#8a92a3" font-size="10" text-anchor="middle">reputation x sqrt(stake) x independence</text>
+    <text x="580" y="445" fill="#8a92a3" font-size="10" text-anchor="middle">independence = 1/sqrt(cluster_size)</text>
+    <text x="580" y="458" fill="#8a92a3" font-size="10" text-anchor="middle">weighted-average aggregation + explanation</text>
+    <text x="580" y="472" fill="#e5c07b" font-size="10" text-anchor="middle">Principle II: explainable over sophisticated</text>
+  </g>
+  <line x1="580" y1="340" x2="580" y2="388" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Allocator -->
+  <g>
+    <rect x="440" y="530" width="280" height="70" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="580" y="552" fill="#e6e9ef" font-size="13" text-anchor="middle">Allocator</text>
+    <text x="580" y="570" fill="#8a92a3" font-size="10" text-anchor="middle">priority = P x impact x urgency / review_cost</text>
+    <text x="580" y="583" fill="#e5c07b" font-size="10" text-anchor="middle">Principle IV: budgeted attention, withheld count shown</text>
+  </g>
+  <line x1="580" y1="480" x2="580" y2="528" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Human queue -->
+  <g>
+    <rect x="900" y="390" width="220" height="90" rx="8" fill="#161a22" stroke="#35c07a"/>
+    <text x="1010" y="412" fill="#e6e9ef" font-size="13" text-anchor="middle">Top-K Human Queue</text>
+    <text x="1010" y="432" fill="#8a92a3" font-size="10" text-anchor="middle">ranked, budget-bounded</text>
+    <text x="1010" y="445" fill="#8a92a3" font-size="10" text-anchor="middle">rank + reason + full trace</text>
+    <text x="1010" y="458" fill="#8a92a3" font-size="10" text-anchor="middle">(GET /api/queue, /explain)</text>
+  </g>
+  <line x1="720" y1="565" x2="1010" y2="565" stroke="#4a5568" stroke-width="2"/>
+  <line x1="1010" y1="565" x2="1010" y2="482" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Settlement engine -->
+  <g>
+    <rect x="900" y="250" width="220" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="1010" y="272" fill="#e6e9ef" font-size="13" text-anchor="middle">Settlement Engine</text>
+    <text x="1010" y="292" fill="#8a92a3" font-size="10" text-anchor="middle">Brier score vs. ground truth</text>
+    <text x="1010" y="305" fill="#8a92a3" font-size="10" text-anchor="middle">integer credit delta, loss capped at stake</text>
+    <text x="1010" y="318" fill="#8a92a3" font-size="10" text-anchor="middle">reputation moves with the settlement</text>
+    <text x="1010" y="333" fill="#e5c07b" font-size="10" text-anchor="middle">outcomes.resolved -&gt; worker -&gt; blackboard</text>
+  </g>
+  <line x1="1010" y1="390" x2="1010" y2="342" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="940" y1="180" x2="1010" y2="248" stroke="#4a5568" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- Dashboard -->
+  <g>
+    <rect x="30" y="390" width="180" height="90" rx="8" fill="#161a22" stroke="#262b36"/>
+    <text x="120" y="412" fill="#e6e9ef" font-size="13" text-anchor="middle">Dashboard</text>
+    <text x="120" y="432" fill="#8a92a3" font-size="10" text-anchor="middle">FastAPI + WS /api/live</text>
+    <text x="120" y="445" fill="#8a92a3" font-size="10" text-anchor="middle">reads the blackboard directly</text>
+    <text x="120" y="458" fill="#8a92a3" font-size="10" text-anchor="middle">3-strategy comparison panel</text>
+    <text x="120" y="472" fill="#8a92a3" font-size="10" text-anchor="middle">metrics: null = "not measured"</text>
+  </g>
+  <line x1="210" y1="435" x2="438" y2="435" stroke="#4a5568" stroke-width="2" stroke-dasharray="4,3"/>
+  <line x1="840" y1="180" x2="120" y2="388" stroke="#4a5568" stroke-width="1.5" stroke-dasharray="2,3" fill="none"/>
+
+  <text x="30" y="600" fill="#8a92a3" font-size="10">Baseline strategies (majority vote, highest confidence) run beside the attention market over the identical event stream — not shown, see contracts/http-api.md /api/comparison.</text>
+</svg>

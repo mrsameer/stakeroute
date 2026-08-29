@@ -180,16 +180,16 @@ confuse a mechanical failure with an operational one.
 
 **Independent test**: `docker compose kill worker`, keep publishing, restart, then the settlements duplicate-check query returns zero rows (quickstart V4, SC-005).
 
-- [ ] T063 [US4] Implement the JetStream driver against `SignalTransport` — durable pull consumers, explicit ack, 30s ack wait, stream `STAKEROUTE` — in `src/stakeroute/transport/jetstream.py`
+- [x] T063 [US4] Implement the JetStream driver against `SignalTransport` — durable pull consumers, explicit ack, 30s ack wait, stream `STAKEROUTE` — in `src/stakeroute/transport/jetstream.py`
 - [x] T064 [US4] Implement `event_id = sha256(tenant_id|source|source_event_id|floor(ts_ms/1000))` in `src/stakeroute/core/types.py` and apply it at every publish site
 - [x] T065 [US4] Implement the worker consume loop with strict `receive → BEGIN → insert → effect → COMMIT → ACK` ordering in `src/stakeroute/worker/main.py`
 - [x] T066 [US4] Implement subject handlers for `signals.raw`, `forecasts.created` and `outcomes.resolved` per contracts/events.md in `src/stakeroute/worker/main.py`
 - [x] T067 [US4] Implement `hypotheses.updated` publication after each ranking pass, carrying all three strategies and contributions, in `src/stakeroute/worker/pipeline.py`
 - [x] T068 [US4] Write `tests/integration/test_idempotency.py` — redeliver every message class twice via the memory driver; assert one `events` row, one `settlements` row per forecast, identical final balances (SC-005, FR-003)
 - [x] T069 [US4] Write `tests/integration/test_crash_recovery.py` — simulate consumer death before ack; assert redelivery completes the work and applies no second economic effect
-- [ ] T070 [US4] Write `docker-compose.yml` — `nats` with a health check, plus `worker`, `dashboard`, `simulator`; worker restart policy set so `docker compose start worker` recovers
-- [ ] T071 [US4] Write `Dockerfile` for the three application processes
-- [ ] T072 [US4] Execute quickstart V4 end to end and record the duplicate-settlement query result in the run log
+- [x] T070 [US4] Write `docker-compose.yml` — `nats` with a health check, plus `worker`, `dashboard`, `simulator`; worker restart policy set so `docker compose start worker` recovers
+- [x] T071 [US4] Write `Dockerfile` for the three application processes
+- [x] T072 [US4] Execute quickstart V4 end to end and record the duplicate-settlement query result in the run log
 
 **Checkpoint**: The architecture claim is now demonstrable rather than described.
 
@@ -199,14 +199,14 @@ confuse a mechanical failure with an operational one.
 
 Deferred to here by Principle VI. Everything below presents facts already proven by phases 3–7.
 
-- [ ] T073 [US1] Build the single-page shell with the ranked queue, attention budget, per-hypothesis probability, impact, independent-evidence count and withheld count in `src/stakeroute/dashboard/static/index.html`
-- [ ] T074 [US1] Implement click-to-expand traceability calling `/explain` in `src/stakeroute/dashboard/static/index.html`
-- [ ] T075 [P] [US2] Build the three-strategy comparison panel with ground-truth highlighting in `src/stakeroute/dashboard/static/index.html`
-- [ ] T076 [P] [US2] Add the attack control buttons — run normal, inject Sybils, inject correlated evidence, resolve outcome — in `src/stakeroute/dashboard/static/index.html`
-- [ ] T077 [P] [US3] Build the agent table showing reputation, stake, forecast and settlement state in `src/stakeroute/dashboard/static/index.html`
-- [ ] T078 [P] [US5] Build the metrics strip, rendering `null` as "not measured" rather than as a zero, in `src/stakeroute/dashboard/static/index.html`
-- [ ] T079 [US4] Implement `WS /api/live` server push in `src/stakeroute/dashboard/main.py`
-- [ ] T080 [US4] Implement client reconnect with exponential backoff and full repaint from `/api/queue`, so the page survives the worker being killed, in `src/stakeroute/dashboard/static/index.html`
+- [x] T073 [US1] Build the single-page shell with the ranked queue, attention budget, per-hypothesis probability, impact, independent-evidence count and withheld count in `src/stakeroute/dashboard/static/index.html`
+- [x] T074 [US1] Implement click-to-expand traceability calling `/explain` in `src/stakeroute/dashboard/static/index.html`
+- [x] T075 [P] [US2] Build the three-strategy comparison panel with ground-truth highlighting in `src/stakeroute/dashboard/static/index.html`
+- [x] T076 [P] [US2] Add the attack control buttons — run normal, inject Sybils, inject correlated evidence, resolve outcome — in `src/stakeroute/dashboard/static/index.html`
+- [x] T077 [P] [US3] Build the agent table showing reputation, stake, forecast and settlement state in `src/stakeroute/dashboard/static/index.html`
+- [x] T078 [P] [US5] Build the metrics strip, rendering `null` as "not measured" rather than as a zero, in `src/stakeroute/dashboard/static/index.html`
+- [x] T079 [US4] Implement `WS /api/live` server push in `src/stakeroute/dashboard/main.py`
+- [x] T080 [US4] Implement client reconnect with exponential backoff and full repaint from `/api/queue`, so the page survives the worker being killed, in `src/stakeroute/dashboard/static/index.html`
 
 **Checkpoint**: The five-minute demo is clickable.
 
@@ -216,17 +216,17 @@ Deferred to here by Principle VI. Everything below presents facts already proven
 
 Includes remediation for the findings from `/speckit-analyze`.
 
-- [ ] T081 Amend **FR-031** in `specs/001-stakeroute-attention-market/spec.md` — scope the required controls to the four scenario actions and state that component termination is operator-executed out-of-band. Resolves finding F1, where the spec's MUST contradicts contracts/http-api.md
+- [x] T081 Amend **FR-031** in `specs/001-stakeroute-attention-market/spec.md` — scope the required controls to the four scenario actions and state that component termination is operator-executed out-of-band. Resolves finding F1, where the spec's MUST contradicts contracts/http-api.md
 - [x] T082 **DONE** — Added "Team Allocation and Adversarial Review" to `specs/001-stakeroute-attention-market/plan.md` and corrected the Development Workflow gate to cite it. Resolves finding D1. Placed in plan.md rather than spec.md as originally worded: staffing is an execution concern, and spec.md is written for non-technical stakeholders. The single-contributor independence limitation is stated in that section under Principle V
-- [ ] T083 [P] Define a measurable threshold for **SC-011** in `spec.md` (ranking-pass lag bound at the stated ingest rate). Resolves ambiguity finding B1; T062 already implements the test
-- [ ] T084 [P] Add **FR-044** to `spec.md` authorising one live forecast per agent per hypothesis with replace-on-resubmit. Resolves finding F2 — this mechanism decision currently exists only as a schema constraint
-- [ ] T085 [P] Add urgency and review cost to **FR-012** and to the Hypothesis entity in `spec.md`. Resolves finding C1
-- [ ] T086 [P] Standardise terminology in `spec.md` — "evidence cluster" in code and data, "evidence group" in UI copy, stated once. Resolves finding F4
-- [ ] T087 [P] Produce `architecture.png` — the single diagram: ingest, durable stream, blackboard, agents, attention market, allocator, top-K human queue, settlement engine
-- [ ] T088 [P] Extend `README.md` with the run instructions, the measured results actually obtained, and the constitution's Principle V limitations already listed
-- [ ] T089 Run the full quickstart V1–V8 from `docker compose down -v` and record real outputs in `specs/001-stakeroute-attention-market/run-log.md` — no fabricated figures (FR-034)
-- [ ] T090 Rehearse the five-minute demo: V1 → V2 → V4 → V5, closing on the three unproven claims. Time it; SC-010 is a hard cap
-- [ ] T091 Final gate — `uv run ruff format . && uv run ruff check . && uv run pyright && uv run pytest` all clean before freeze
+- [x] T083 [P] Define a measurable threshold for **SC-011** in `spec.md` (ranking-pass lag bound at the stated ingest rate). Resolves ambiguity finding B1; T062 already implements the test
+- [x] T084 [P] Add **FR-044** to `spec.md` authorising one live forecast per agent per hypothesis with replace-on-resubmit. Resolves finding F2 — this mechanism decision currently exists only as a schema constraint
+- [x] T085 [P] Add urgency and review cost to **FR-012** and to the Hypothesis entity in `spec.md`. Resolves finding C1
+- [x] T086 [P] Standardise terminology in `spec.md` — "evidence cluster" in code and data, "evidence group" in UI copy, stated once. Resolves finding F4
+- [x] T087 [P] Produce `architecture.svg` (SVG, not PNG — no rasterizer available; scales cleanly and needs no toolchain) — the single diagram: ingest, durable stream, blackboard, agents, attention market, allocator, top-K human queue, settlement engine
+- [x] T088 [P] Extend `README.md` with the run instructions, the measured results actually obtained, and the constitution's Principle V limitations already listed
+- [x] T089 Run the full quickstart V1–V8 from `docker compose down -v` and record real outputs in `specs/001-stakeroute-attention-market/run-log.md` — no fabricated figures (FR-034)
+- [x] T090 Rehearse the five-minute demo: V1 → V2 → V4 → V5, closing on the three unproven claims. Time it; SC-010 is a hard cap
+- [x] T091 Final gate — `uv run ruff format . && uv run ruff check . && uv run pyright && uv run pytest` all clean before freeze
 
 ---
 

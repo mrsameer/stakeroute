@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>StakeRoute</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-border: #262b36;
+    --text: #e6e9ef;
+    --muted: #8a92a3;
+    --accent: #4f8cff;
+    --good: #35c07a;
+    --bad: #e5574a;
+    --warn: #e8b13a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--panel-border);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  #conn-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    color: var(--muted);
+  }
+  #conn-badge.live { color: var(--good); border-color: var(--good); }
+  #conn-badge.down { color: var(--bad); border-color: var(--bad); }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 20px; }
+  button {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.danger:hover { border-color: var(--bad); }
+
+  main {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 16px;
+    padding: 0 20px 24px;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  .budget-row { display: flex; gap: 18px; margin-bottom: 10px; font-size: 13px; }
+  .budget-row b { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--panel-border); vertical-align: top; }
+  tr.queue-row { cursor: pointer; }
+  tr.queue-row:hover { background: rgba(79,140,255,0.08); }
+  tr.true-outcome td:first-child { border-left: 3px solid var(--good); }
+  tr.false-outcome td:first-child { border-left: 3px solid var(--bad); }
+
+  .rank-pill {
+    display: inline-block;
+    min-width: 20px;
+    text-align: center;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 12px;
+  }
+  .withheld { color: var(--warn); font-size: 12px; }
+
+  .explain-box {
+    display: none;
+    background: #0c0e13;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    margin: 4px 0 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .explain-box.open { display: block; }
+  .explain-box table { font-size: 12px; }
+  .reason { color: var(--muted); font-style: italic; margin-bottom: 6px; }
+
+  .metric-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .metric-cell { background: #0c0e13; border: 1px solid var(--panel-border); border-radius: 6px; padding: 8px 10px; }
+  .metric-cell .label { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  .metric-cell .value { font-size: 18px; margin-top: 2px; }
+  .metric-cell .value.unmeasured { color: var(--muted); font-size: 13px; font-style: italic; }
+
+  .strategy-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .strategy-col h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; text-transform: uppercase; }
+  .strategy-col .row { font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--panel-border); }
+  .strategy-col .row.true { color: var(--good); }
+  .strategy-col .row.false { color: var(--bad); }
+
+  .not-measured { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>StakeRoute</h1>
+    <div class="sub">Attention market for autonomous AI agents</div>
+  </div>
+  <span id="conn-badge">connecting…</span>
+</header>
+
+<div class="controls">
+  <button id="btn-run">Run normal scenario</button>
+  <button id="btn-sybils">Inject 50 Sybils</button>
+  <button id="btn-correlated">Inject correlated evidence</button>
+  <button id="btn-resolve-true">Resolve payment-failure → TRUE</button>
+  <button id="btn-resolve-false">Resolve database-saturation → FALSE</button>
+  <button id="btn-refresh">Refresh</button>
+</div>
+
+<main>
+  <div>
+    <div class="panel">
+      <h2>Ranked Queue</h2>
+      <div class="budget-row">
+        <span>Attention budget: <b id="q-budget">–</b></span>
+        <span>Slots used: <b id="q-used">–</b></span>
+        <span class="withheld">Withheld: <b id="q-withheld">–</b></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Rank</th><th>Hypothesis</th><th>Probability</th><th>Impact</th><th>Evidence groups</th><th>Reason</th></tr>
+        </thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+      <p class="sub" style="margin-top:8px;">Click a row to trace it back to its contributing agents (FR-017).</p>
+    </div>
+
+    <div class="panel">
+      <h2>Strategy Comparison</h2>
+      <div class="strategy-cols" id="comparison-cols"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Agents</h2>
+      <table>
+        <thead>
+          <tr><th>Agent</th><th>Reputation</th><th>Available</th><th>Staked</th><th>Last forecast</th><th>Last settlement</th></tr>
+        </thead>
+        <tbody id="agents-body"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Metrics</h2>
+      <div class="metric-strip" id="metrics-strip"></div>
+      <p class="sub" style="margin-top:8px;" id="run-id"></p>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmtPct = (v) => v === null || v === undefined ? null : (v * 100).toFixed(1) + "%";
+const fmtNum = (v, digits = 2) => v === null || v === undefined ? null : Number(v).toFixed(digits);
+
+function metricCell(label, value, formatter) {
+  const formatted = value === null || value === undefined ? null : (formatter ? formatter(value) : value);
+  const cls = formatted === null ? "value unmeasured" : "value";
+  const text = formatted === null ? "not measured" : formatted;
+  return `<div class="metric-cell"><div class="label">${label}</div><div class="${cls}">${text}</div></div>`;
+}
+
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+async function refreshQueue() {
+  const q = await fetchJSON("/api/queue");
+  $("q-budget").textContent = q.attention_budget;
+  $("q-used").textContent = q.slots_used;
+  $("q-withheld").textContent = q.withheld_count;
+
+  const rows = q.routed.map((h) => `
+    <tr class="queue-row" data-hid="${h.hypothesis_id}">
+      <td><span class="rank-pill">${h.rank}</span></td>
+      <td>${h.statement}</td>
+      <td>${fmtPct(h.probability)}</td>
+      <td>${(h.impact_minor_units / 1_000_000).toFixed(1)}M</td>
+      <td>${h.independent_evidence_groups} independent, ${h.discounted_report_count} discounted</td>
+      <td class="reason">${h.reason}</td>
+    </tr>
+    <tr><td colspan="6"><div class="explain-box" id="explain-${h.hypothesis_id}"></div></td></tr>
+  `).join("");
+  $("queue-body").innerHTML = rows || `<tr><td colspan="6" class="sub">No scenario run yet — click "Run normal scenario".</td></tr>`;
+
+  document.querySelectorAll(".queue-row").forEach((row) => {
+    row.addEventListener("click", () => toggleExplain(row.dataset.hid));
+  });
+}
+
+async function toggleExplain(hid) {
+  const box = $(`explain-${hid}`);
+  const isOpen = box.classList.contains("open");
+  document.querySelectorAll(".explain-box.open").forEach((b) => b.classList.remove("open"));
+  if (isOpen) return;
+
+  const data = await fetchJSON(`/api/hypotheses/${hid}/explain`);
+  const contribRows = data.contributions.map((c) => `
+    <tr>
+      <td>${c.agent_id}</td>
+      <td>${fmtNum(c.reputation)}</td>
+      <td>${fmtPct(c.probability)}</td>
+      <td>${c.stake}</td>
+      <td>${c.evidence_cluster_id} (size ${c.cluster_size})</td>
+      <td>${fmtNum(c.independence, 3)}</td>
+      <td>${fmtNum(c.weight, 3)}</td>
+      <td>${fmtPct(c.alpha)}</td>
+    </tr>
+  `).join("");
+  box.innerHTML = `
+    <div>Prior: ${fmtPct(data.prior_probability)} → Aggregated: ${fmtPct(data.aggregated_probability)}</div>
+    <table style="margin-top:8px;">
+      <thead><tr><th>Agent</th><th>Reputation</th><th>Probability</th><th>Stake</th><th>Cluster</th><th>Independence</th><th>Weight</th><th>α</th></tr></thead>
+      <tbody>${contribRows}</tbody>
+    </table>
+  `;
+  box.classList.add("open");
+}
+
+async function refreshComparison() {
+  const c = await fetchJSON("/api/comparison");
+  const names = { stakeroute: "StakeRoute", majority_vote: "Majority Vote", highest_confidence: "Highest Confidence" };
+  const cols = Object.entries(c.strategies).map(([key, rows]) => {
+    const rowsHtml = rows.map((r) => {
+      const gt = c.ground_truth[r.hypothesis_id];
+      const cls = gt === 1 ? "true" : gt === 0 ? "false" : "";
+      return `<div class="row ${cls}">#${r.rank} ${r.hypothesis_id} — ${fmtPct(r.probability)}</div>`;
+    }).join("") || `<div class="row sub">no data</div>`;
+    return `<div class="strategy-col"><h3>${names[key] || key}</h3>${rowsHtml}</div>`;
+  }).join("");
+  $("comparison-cols").innerHTML = cols;
+}
+
+async function refreshAgents() {
+  const a = await fetchJSON("/api/agents");
+  const rows = a.agents.map((agent) => `
+    <tr>
+      <td>${agent.display_name}${agent.attested ? "" : " (unattested)"}</td>
+      <td>${fmtNum(agent.reputation)}</td>
+      <td>${agent.available_credits}</td>
+      <td>${agent.staked_credits}</td>
+      <td>${agent.last_forecast === null ? "–" : fmtPct(agent.last_forecast)}</td>
+      <td>${agent.last_settlement === null ? "–" : agent.last_settlement}</td>
+    </tr>
+  `).join("");
+  $("agents-body").innerHTML = rows || `<tr><td colspan="6" class="sub">No agents yet.</td></tr>`;
+}
+
+async function refreshMetrics() {
+  const m = await fetchJSON("/api/metrics");
+  $("metrics-strip").innerHTML = [
+    metricCell("Precision@K", m.precision_at_k, fmtPct),
+    metricCell("False escalation", m.false_escalation_rate, fmtPct),
+    metricCell("Time to attention", m.time_to_attention_ms, (v) => `${Math.round(v)}ms`),
+    metricCell("Mean Brier score", m.mean_brier_score, (v) => fmtNum(v, 4)),
+    metricCell("Events/sec", m.events_per_second, (v) => fmtNum(v, 1)),
+  ].join("");
+  $("run-id").textContent = m.run_id ? `run: ${m.run_id} — measured over ${m.measured_over_events} events` : "no run yet";
+}
+
+async function refreshAll() {
+  await Promise.all([refreshQueue(), refreshComparison(), refreshAgents(), refreshMetrics()]);
+}
+
+async function postJSON(url, body) {
+  await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  await refreshAll();
+}
+
+$("btn-run").addEventListener("click", () => postJSON("/api/scenario/run_normal", { seed: 42 }));
+$("btn-sybils").addEventListener("click", () => postJSON("/api/scenario/inject_sybils", { count: 50, target: "h-database-saturation" }));
+$("btn-correlated").addEventListener("click", () => postJSON("/api/scenario/inject_correlated", { count: 20, cluster: "database-observability", target: "h-database-saturation" }));
+$("btn-resolve-true").addEventListener("click", () => postJSON("/api/scenario/resolve", { hypothesis_id: "h-payment-failure", outcome: 1 }));
+$("btn-resolve-false").addEventListener("click", () => postJSON("/api/scenario/resolve", { hypothesis_id: "h-database-saturation", outcome: 0 }));
+$("btn-refresh").addEventListener("click", refreshAll);
+
+// --- WS live updates with exponential-backoff reconnect (T080) ---
+// The socket carries no state of its own: on connect AND on every
+// message, we just repaint from the REST endpoints. That is what lets the
+// page survive the worker being killed — there is nothing to resync,
+// only a fresh GET to reissue.
+let backoffMs = 500;
+const MAX_BACKOFF_MS = 10000;
+
+function connectLive() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${location.host}/api/live`);
+
+  ws.onopen = () => {
+    $("conn-badge").textContent = "live";
+    $("conn-badge").className = "live";
+    backoffMs = 500;
+    refreshAll();
+  };
+  ws.onmessage = () => { refreshAll(); };
+  ws.onclose = () => {
+    $("conn-badge").textContent = "reconnecting…";
+    $("conn-badge").className = "down";
+    setTimeout(connectLive, backoffMs);
+    backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+  };
+  ws.onerror = () => ws.close();
+}
+
+connectLive();
+refreshAll();
+</script>
+</body>
+</html>
